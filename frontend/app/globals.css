@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+:root {
+  --background: #efefef;
+  --foreground: #ffffff;
+  --main: #00a949;
+  --secondary: #FFECB3;
+  --main-hover: #00a544;
+  --secondary-hover: #FFECB3;
+}
+
+@theme {
+  --color-background: var(-background);
+  --color-foreground: var(-foreground);
+  --color-main: var(--main);
+  --color-secondary: var(--secondary);
+  --color-main-hover: var(--main-hover);
+  --color-secondary-hover: var(--secondary-hover);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background-color: var(--background);
+}
+
+/* header+main {
+  margin-top: 100px;
+} */
+
+button,
+input[type=search],
+input[type=submit] {
+  cursor: pointer;
+}
+
+a {
+  border-bottom: 2px solid var(--main);
+}
+
+a:hover {
+  opacity: 0.8;
+}
+
+.inputs {
+  position: relative;
+  padding-top: 12px;
+  background-color: var(--foreground);
+}
+
+.inputs input,
+.inputs input:focus {
+
+  width: 100%;
+  padding: 10px;
+  outline: 0;
+  border-bottom: 2px solid var(--main);
+}
+
+.inputs label {
+  width: 100%;
+  font-size: 18px;
+  position: absolute;
+  transform: translatex(-420px) translateY(10px);
+  transition: 0.3s;
+}
+
+.inputs input:focus~label,
+.inputs input:not(:placeholder-shown)~label {
+  transform: translatex(-420px) translateY(-12px) !important;
+  font-size: 14px;
+  color: var(--main);
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  background-color: var(--background) !important;
+  -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+  color: #000000 !important;
+}
