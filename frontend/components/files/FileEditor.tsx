@@ -15,10 +15,19 @@ interface FileEditorProps {
   file: any;
   onSave: (fileId: number, content: any) => Promise<{ success: boolean }>;
   onClose: () => void;
+  onSaveAsPermanent?: () => Promise<{ success: boolean }> | void;
   userId: number;
+  onDiscard?: () => void;
 }
 
-export default function FileEditor({ file, onSave, onClose, userId }: FileEditorProps) {
+export default function FileEditor({
+  file,
+  onSave,
+  onClose,
+  userId,
+  onSaveAsPermanent,
+  onDiscard
+}: FileEditorProps) {
   const auth = useAuth()
   if (!auth) return
   const { user, get, post } = auth;

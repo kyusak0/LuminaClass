@@ -40,7 +40,7 @@ export default function FilesPage() {
         if (savedState !== null) {
             setIsSidebarOpen(savedState === 'true');
         }
-        
+
         // Очищаем временные файлы при закрытии страницы
         return () => {
             cleanupTempFiles();
@@ -104,7 +104,7 @@ export default function FilesPage() {
     const handleFileSave = async (fileId: number | string, content: any, isTemp: boolean = false) => {
         if (isTemp) {
             // Для временных файлов просто обновляем локальное состояние
-            setTempFiles(prev => prev.map(f => 
+            setTempFiles(prev => prev.map(f =>
                 f.id === fileId ? { ...f, content, saved: true } : f
             ));
             return { success: true, isTemp: true };
@@ -127,7 +127,7 @@ export default function FilesPage() {
         try {
             // Создаём постоянный файл из временного
             const formData = new FormData();
-            
+
             let blobToUpload: Blob;
             let mimeType = tempFile.mime_type || 'application/octet-stream';
             let fileName = tempFile.original_name.replace('_temp_', '_');
@@ -149,17 +149,15 @@ export default function FilesPage() {
             formData.append('author_id', user.id);
 
             const result = await post('/save-file', formData);
-            
+
             if (result && result.file_id) {
-                // Удаляем временный файл из списка
                 setTempFiles(prev => prev.filter(f => f.id !== tempFile.id));
-                // Перезагружаем список файлов
                 await loadFiles();
-                // Закрываем редактор
                 setSelectedFile(null);
                 alert('Файл успешно сохранён!');
                 return { success: true };
             }
+            return { success: false };
         } catch (error) {
             console.error('Error saving permanent file:', error);
             alert('Ошибка при сохранении файла');
@@ -196,7 +194,7 @@ export default function FilesPage() {
 
         // Добавляем в список временных файлов
         setTempFiles(prev => [tempFile, ...prev]);
-        
+
         // Открываем файл для редактирования
         setSelectedFile(tempFile);
     };
@@ -209,9 +207,8 @@ export default function FilesPage() {
             <div className="flex h-[90vh] bg-gray-100">
                 {/* Sidebar */}
                 <div
-                    className={`bg-white border-r transition-all duration-300 ease-in-out flex flex-col ${
-                        isSidebarOpen ? 'w-80' : 'w-12'
-                    }`}
+                    className={`bg-white border-r transition-all duration-300 ease-in-out flex flex-col ${isSidebarOpen ? 'w-80' : 'w-12'
+                        }`}
                 >
                     <div className="border-b p-2 flex items-center justify-between">
                         {isSidebarOpen && (
@@ -219,9 +216,8 @@ export default function FilesPage() {
                         )}
                         <button
                             onClick={toggleSidebar}
-                            className={`p-1.5 hover:bg-gray-100 rounded transition-colors ${
-                                !isSidebarOpen ? 'mx-auto' : ''
-                            }`}
+                            className={`p-1.5 hover:bg-gray-100 rounded transition-colors ${!isSidebarOpen ? 'mx-auto' : ''
+                                }`}
                             title={isSidebarOpen ? 'Скрыть' : 'Развернуть'}
                         >
                             {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
@@ -252,9 +248,8 @@ export default function FilesPage() {
                                 {tempFiles.map(tempFile => (
                                     <div
                                         key={tempFile.id}
-                                        className={`flex items-center justify-between p-2 rounded cursor-pointer hover:bg-yellow-100 transition-colors ${
-                                            selectedFile?.id === tempFile.id ? 'bg-yellow-200' : ''
-                                        }`}
+                                        className={`flex items-center justify-between p-2 rounded cursor-pointer hover:bg-yellow-100 transition-colors ${selectedFile?.id === tempFile.id ? 'bg-yellow-200' : ''
+                                            }`}
                                         onClick={() => setSelectedFile(tempFile)}
                                     >
                                         <div className="flex items-center gap-2 overflow-hidden">
@@ -328,8 +323,10 @@ export default function FilesPage() {
                             onSave={handleFileSave}
                             onClose={() => setSelectedFile(null)}
                             userId={user?.id}
-                            onSaveAsPermanent={selectedFile.is_temp ? () => handleSaveAsPermanent(selectedFile) : undefined}
-                            onDiscard={selectedFile.is_temp ? () => discardTempFile(selectedFile.id) : undefined}
+                            {...(selectedFile.is_temp && {
+                                onSaveAsPermanent: (() => handleSaveAsPermanent(selectedFile)) as any,
+                                onDiscard: (() => discardTempFile(selectedFile.id)) as any
+                            })}
                         />
                     )}
                     {!selectedFile && (

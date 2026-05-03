@@ -463,7 +463,10 @@ export default function UserPage() {
                         ))}
                       </Pie>
                       <Tooltip
-                        formatter={(value: number) => [`${value.toFixed(1)}%`, 'Доля']}
+                        formatter={(value: number | undefined) => {
+                          if (value === undefined) return ['0%', 'Доля'];
+                          return [`${value.toFixed(1)}%`, 'Доля'];
+                        }}
                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                       />
                     </PieChart>
@@ -509,12 +512,12 @@ export default function UserPage() {
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <Calendar
-                tasks={userData?.tasks || []}
-                onTaskClick={(task) => {
-                  router.push(`/tasks/${task.id}`);
-                }}
-              />
+            <Calendar
+              tasks={userData?.tasks || []}
+              onTaskClick={(task) => {
+                router.push(`/tasks/${task.id}`);
+              }}
+            />
           </div>
         </div>
 
