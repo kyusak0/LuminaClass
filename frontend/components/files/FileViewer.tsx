@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { X, Download, Maximize2, Minimize2 } from 'lucide-react';
+import { NEXT_PUBLIC_API_URL } from '@/lib/axios.config';
 
-const STORAGE_URL = 'http://localhost:8001/storage/';
-const API_URL = 'http://localhost:8001/api';
+const STORAGE_URL = `${NEXT_PUBLIC_API_URL}/storage/`;
+const API_URL = `${NEXT_PUBLIC_API_URL}/api`;
 
 interface FileViewerProps {
   file: any;

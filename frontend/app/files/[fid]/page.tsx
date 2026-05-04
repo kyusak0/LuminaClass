@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/authContext";
+import { NEXT_PUBLIC_API_URL } from "@/lib/axios.config";
 
 interface FileData {
     id: number;
@@ -83,7 +84,7 @@ export default function FilePage() {
     };
 
     const getFileUrl = (filePath: string) => {
-        return `http://localhost:8001/storage/${filePath}`;
+        return `${NEXT_PUBLIC_API_URL}/storage/${filePath}`;
     };
 
     const formatFileSize = (bytes: number) => {

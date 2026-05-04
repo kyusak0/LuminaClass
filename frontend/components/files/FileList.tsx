@@ -10,6 +10,7 @@ import { useAuth } from '@/context/authContext';
 import { useState } from 'react';
 import JSZip from 'jszip';
 import CreateFileModal from './NewFileCreator';
+import { NEXT_PUBLIC_API_URL } from '@/lib/axios.config';
 
 interface FileListProps {
     files: any[];
@@ -77,7 +78,7 @@ export default function FileList({ files, onSelect, onFilesUpdate, selectedId, l
         e.stopPropagation();
         setDownloadingId(file.id);
         try {
-            window.open(`http://localhost:8001/api/files/download/${file.id}`, '_blank');
+            window.open(`${NEXT_PUBLIC_API_URL}/api/files/download/${file.id}`, '_blank');
         } catch (error) {
             console.error('Download error:', error);
         } finally {
@@ -91,7 +92,7 @@ export default function FileList({ files, onSelect, onFilesUpdate, selectedId, l
 
         setDeletingId(file.id);
         try {
-            const response = await fetch(`http://localhost:8001/api/delete-file/${file.id}`, {
+            const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/delete-file/${file.id}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -120,7 +121,7 @@ export default function FileList({ files, onSelect, onFilesUpdate, selectedId, l
 
             // Скачиваем каждый файл и добавляем в архив
             for (const file of filesToArchive) {
-                const response = await fetch(`http://localhost:8001/api/files/download/${file.id}`, {
+                const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/files/download/${file.id}`, {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
@@ -138,7 +139,7 @@ export default function FileList({ files, onSelect, onFilesUpdate, selectedId, l
             formData.append('file', zipBlob, archiveName);
             formData.append('author_id', localStorage.getItem('userId') || '1');
 
-            const uploadResponse = await fetch('http://localhost:8001/api/save-file', {
+            const uploadResponse = await fetch('${NEXT_PUBLIC_API_URL}/api/save-file', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -149,7 +150,7 @@ export default function FileList({ files, onSelect, onFilesUpdate, selectedId, l
             if (uploadResponse.ok) {
                 // Удаляем исходные файлы
                 for (const file of filesToArchive) {
-                    await fetch(`http://localhost:8001/api/delete-file/${file.id}`, {
+                    await fetch(`${NEXT_PUBLIC_API_URL}/api/delete-file/${file.id}`, {
                         method: 'DELETE',
                         headers: {
                             'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -180,7 +181,7 @@ export default function FileList({ files, onSelect, onFilesUpdate, selectedId, l
         setIsDeleting(true);
         try {
             for (const fileId of selectedFiles) {
-                await fetch(`http://localhost:8001/api/delete-file/${fileId}`, {
+                await fetch(`${NEXT_PUBLIC_API_URL}/api/delete-file/${fileId}`, {
                     method: 'DELETE',
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import JSZip from 'jszip';
+import { NEXT_PUBLIC_API_URL } from "@/lib/axios.config";
 
 // Компонент слайдера
 const FileSlider = ({ files, onClose }: { files: Array<{ name: string, url: string, type: string }>, onClose: () => void }) => {
@@ -237,7 +238,7 @@ export default function BookingPage() {
         setIsExtracting(true);
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`http://localhost:8001/api/files/download/${fileId}`, {
+            const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/files/download/${fileId}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -399,14 +400,14 @@ export default function BookingPage() {
     };
 
     const getFileUrl = (filePath: string) => {
-        return `http://localhost:8001/storage/${filePath}`;
+        return `${NEXT_PUBLIC_API_URL}/storage/${filePath}`;
     };
 
     const downloadFile = async (fileId: number, fileName: string) => {
         const newFileName = prompt(`Под каким именем сохранить? \n по умолчанию: (${fileName})`) || fileName;
         
         try {
-            const response = await fetch(`http://localhost:8001/api/files/download/${fileId}`, {
+            const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/files/download/${fileId}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,

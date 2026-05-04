@@ -9,6 +9,7 @@ import JSZip from 'jszip';
 import FileViewer from "@/components/files/FileViewer";
 import ArchiveViewer from "@/components/files/ArchiveViewer";
 import SearchTable, { SearchRecord } from "@/components/searchTable/SearchTable";
+import { NEXT_PUBLIC_API_URL } from "@/lib/axios.config";
 
 // Типы
 interface TaskInfo {
@@ -319,7 +320,7 @@ export default function BookingPage() {
 
   // Получение URL файла
   const getFileUrl = (filePath: string) => {
-    return `http://localhost:8001/storage/${filePath}`;
+    return `${NEXT_PUBLIC_API_URL}/storage/${filePath}`;
   };
 
   // Скачивание файла
@@ -332,7 +333,7 @@ export default function BookingPage() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8001/api/files/download/${fileId}`, {
+      const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/files/download/${fileId}`, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${token}` },
       });

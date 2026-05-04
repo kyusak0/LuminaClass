@@ -9,6 +9,7 @@ import Calendar from '@/components/calendar/Calendar';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { useAuth } from '@/context/authContext';
 import { Loader2, Upload, Link2, Copy, Check, FileText, ClipboardCheck, Users, BookOpen, MessageCircle, Calendar as CalendarIcon, Star } from 'lucide-react';
+import { NEXT_PUBLIC_API_URL } from '@/lib/axios.config';
 
 interface UserStats {
   files: number;
@@ -182,7 +183,7 @@ export default function UserPage() {
           throw new Error('Сервер не вернул URL файла');
         }
 
-        const avatarUrl = `http://localhost:8001${response.url}`;
+        const avatarUrl = `${NEXT_PUBLIC_API_URL}${response.url}`;
         await post(`/user/${currentUser?.id}/set-avatar`, { avatar: avatarUrl });
 
         showAlert('Файл успешно загружен и установлен как аватар');

@@ -8,8 +8,9 @@ import { Save, X, Download, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/authContext';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import * as XLSX from 'xlsx';
+import { NEXT_PUBLIC_API_URL } from '@/lib/axios.config';
 
-const STORAGE_URL = 'http://localhost:8001/storage/';
+const STORAGE_URL = '${NEXT_PUBLIC_API_URL}/storage/';
 
 interface FileEditorProps {
   file: any;
@@ -214,7 +215,7 @@ export default function FileEditor({
       }
       else {
         // Для остальных типов скачиваем с сервера
-        window.open(`http://localhost:8001/api/files/download/${file.id}`, '_blank');
+        window.open(`${NEXT_PUBLIC_API_URL}/api/files/download/${file.id}`, '_blank');
         return;
       }
 
@@ -236,7 +237,7 @@ export default function FileEditor({
   };
 
   const handleDownloadOriginal = () => {
-    window.open(`http://localhost:8001/api/files/download/${file.id}`, '_blank');
+    window.open(`${NEXT_PUBLIC_API_URL}/api/files/download/${file.id}`, '_blank');
   };
 
   const handleDownloadEdited = async () => {

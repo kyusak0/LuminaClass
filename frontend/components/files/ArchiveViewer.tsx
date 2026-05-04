@@ -11,6 +11,7 @@ import mammoth from 'mammoth';
 
 // Переименовываем импортированный File чтобы избежать конфликта
 import { File as FileIcon } from 'lucide-react';
+import { NEXT_PUBLIC_API_URL } from '@/lib/axios.config';
 
 interface ArchiveViewerProps {
     archive: any;
@@ -178,7 +179,7 @@ export default function ArchiveViewer({ archive, onClose, onFileOpen, onFileExtr
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`http://localhost:8001/api/files/download/${archive.id}`, {
+            const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/files/download/${archive.id}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
