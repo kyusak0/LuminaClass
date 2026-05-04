@@ -28,53 +28,54 @@ Route::middleware('api')->group(function () {
     // Публичные маршруты
     Route::post('/register', [UserController::class, 'createBooking']);
     Route::post('/login', [UserController::class, 'login']);
-    Route::post('/create-user', [UserController::class, 'createUser']);
-    Route::get('/get-users', [UserController::class, 'users']);
-    Route::post('/funcrole', [UserController::class, 'funcrole']);
-    Route::post('/remove-student', [UserController::class, 'removeStudent']);
-    Route::get('/get-user/{id}', [UserController::class, 'getUserInfo']);
-    Route::post('/user/{id}/edit', [UserController::class, 'EditUserData']);
-    Route::post('/user/{id}/set-avatar', [UserController::class, 'setAvatar']);
-
-    Route::post('/create-organization', [OrganizationController::class, 'createOrg']);
-    Route::get('/get-organizations', [OrganizationController::class, 'allOrganizations']);
-    Route::post('/delete-organization/{id}', [OrganizationController::class, 'deleteOrganization']);
-    Route::get('/get-organization-info/{id}', [OrganizationController::class, 'getOrganizationInfo']);
-
-    Route::get('/get-bookings', [BookingController::class, 'getBookings']);
-    Route::get('/get-booking/{id}', [BookingController::class, 'getBookingInfo']);
-    Route::post('/bookings/{id}/edit', [BookingController::class, 'editBooking']);
-    Route::post('/users/reset-password', [BookingController::class, 'resetPassword']);
-
-    Route::post('/save-file', [FileController::class, 'saveFile']);
-    Route::get('/get-files', [FileController::class, 'show']);
-    Route::get('/get-file/{id}', [FileController::class, 'fileInfo']);
-    Route::get('/files/download/{id}', [FileController::class, 'loadFile']);
-    Route::delete('/delete-file/{id}', [FileController::class, 'deleteFile']);
-    Route::get('/get-file-content/{id}', [FileController::class, 'getFileContent']);
-    Route::post('/save-file-content', [FileController::class, 'saveFileContent']);
     
-    Route::get('/get-archive-contents/{id}', [FileController::class, 'getArchiveContents']);
-
-    Route::get('/get-groups', [GroupController::class, 'allGroups']);
-    Route::post('/create-group', [GroupController::class, 'createGroup']);
-    Route::post('/delete-group/{id}', [GroupController::class, 'deleteGroup']);
-    Route::get('/get-group-info/{id}', [GroupController::class, 'getGroupInfo']);
-    Route::get('/get-user-groups/{id}', [GroupController::class, 'getUserGroups']);
-    Route::get('/get-teacher-groups/{id}', [GroupController::class, 'getTeacherGroups']);
-
-    Route::post('/create-task', [TaskController::class, 'createTask']);
-    Route::get('/get-tasks', [TaskController::class, 'allTasks']);
-    Route::get('/get-task/{id}', [TaskController::class, 'getTask']);
-    Route::post('/create-answer', [TaskController::class, 'setAnswer']);
-    Route::post('/grade-task', [TaskController::class, 'gradeTask']);
-    Route::get('/get-answers', [TaskController::class, 'allAnswers']);
-    Route::get('/get-answers/{id}', [TaskController::class, 'getAns']);
-    Route::get('/get-performance', [TaskController::class, 'getPerformance']);
-    Route::get('/get-performance-student/{id}', [TaskController::class, 'getPerformanceStudent']);
-
     // Защищенные маршруты
-    Route::middleware('auth')->group(function () {
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/create-user', [UserController::class, 'createUser']);
+        Route::get('/get-users', [UserController::class, 'users']);
+        Route::post('/funcrole', [UserController::class, 'funcrole']);
+        Route::post('/remove-student', [UserController::class, 'removeStudent']);
+        Route::get('/get-user/{id}', [UserController::class, 'getUserInfo']);
+        Route::post('/user/{id}/edit', [UserController::class, 'EditUserData']);
+        Route::post('/user/{id}/set-avatar', [UserController::class, 'setAvatar']);
+
+        Route::post('/create-organization', [OrganizationController::class, 'createOrg']);
+        Route::get('/get-organizations', [OrganizationController::class, 'allOrganizations']);
+        Route::post('/delete-organization/{id}', [OrganizationController::class, 'deleteOrganization']);
+        Route::get('/get-organization-info/{id}', [OrganizationController::class, 'getOrganizationInfo']);
+
+        Route::get('/get-bookings', [BookingController::class, 'getBookings']);
+        Route::get('/get-booking/{id}', [BookingController::class, 'getBookingInfo']);
+        Route::post('/bookings/{id}/edit', [BookingController::class, 'editBooking']);
+        Route::post('/users/reset-password', [BookingController::class, 'resetPassword']);
+
+        Route::post('/save-file', [FileController::class, 'saveFile']);
+        Route::get('/get-files', [FileController::class, 'show']);
+        Route::get('/get-file/{id}', [FileController::class, 'fileInfo']);
+        Route::get('/files/download/{id}', [FileController::class, 'loadFile']);
+        Route::delete('/delete-file/{id}', [FileController::class, 'deleteFile']);
+        Route::get('/get-file-content/{id}', [FileController::class, 'getFileContent']);
+        Route::post('/save-file-content', [FileController::class, 'saveFileContent']);
+        
+        Route::get('/get-archive-contents/{id}', [FileController::class, 'getArchiveContents']);
+
+        Route::get('/get-groups', [GroupController::class, 'allGroups']);
+        Route::post('/create-group', [GroupController::class, 'createGroup']);
+        Route::post('/delete-group/{id}', [GroupController::class, 'deleteGroup']);
+        Route::get('/get-group-info/{id}', [GroupController::class, 'getGroupInfo']);
+        Route::get('/get-user-groups/{id}', [GroupController::class, 'getUserGroups']);
+        Route::get('/get-teacher-groups/{id}', [GroupController::class, 'getTeacherGroups']);
+
+        Route::post('/create-task', [TaskController::class, 'createTask']);
+        Route::get('/get-tasks', [TaskController::class, 'allTasks']);
+        Route::get('/get-task/{id}', [TaskController::class, 'getTask']);
+        Route::post('/create-answer', [TaskController::class, 'setAnswer']);
+        Route::post('/grade-task', [TaskController::class, 'gradeTask']);
+        Route::get('/get-answers', [TaskController::class, 'allAnswers']);
+        Route::get('/get-answers/{id}', [TaskController::class, 'getAns']);
+        Route::get('/get-performance', [TaskController::class, 'getPerformance']);
+        Route::get('/get-performance-student/{id}', [TaskController::class, 'getPerformanceStudent']);
+
         Route::get('/user', [UserController::class, 'user']);
         Route::post('/logout', [UserController::class, 'logout']);
     });

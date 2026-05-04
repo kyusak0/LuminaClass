@@ -160,29 +160,6 @@ export default function UserPanel() {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-lg shadow p-6 mb-8">
-                    <h2 className="text-2xl font-semibold text-gray-900 mb-4">
-                        Быстрые действия
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <button
-                            onClick={() => router.push('/admin/register')}
-                            className="flex items-center justify-center px-4 py-3 bg-main text-white rounded-lg transition-colors duration-200"
-                        >
-                            <span className="mr-2">➕</span>
-                            Новая заявка
-                        </button>
-                        <button
-                            onClick={() => router.push('/users/create')}
-                            className="flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
-                        >
-                            <span className="mr-2">👤</span>
-                            Добавить пользователя
-                        </button>
-                    </div>
-                </div>
-
-                {/* Полезные ссылки */}
                 <div className="border-t border-gray-200 pt-6">
                     <Link
                         href='/docs/policy'

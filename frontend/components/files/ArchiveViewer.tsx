@@ -179,8 +179,13 @@ export default function ArchiveViewer({ archive, onClose, onFileOpen, onFileExtr
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/files/download/${archive.id}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+            console.log('token:' +token)
+            const response = await fetch(`http://localhost:8001/api/files/download/${archive.id}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
             });
 
             if (!response.ok) throw new Error('Failed to download archive');

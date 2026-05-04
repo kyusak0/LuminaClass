@@ -8,6 +8,7 @@ import FileUploader from '@/components/files/FileUploader';
 import ArchiveViewer from '@/components/files/ArchiveViewer';
 import { ChevronLeft, ChevronRight, Menu, Trash2 } from 'lucide-react';
 import MainLayout from '@/layouts/MainLayout';
+import { notFound } from 'next/navigation';
 
 interface TempFile {
     id: string;
@@ -24,7 +25,7 @@ interface TempFile {
 export default function FilesPage() {
     const auth = useAuth();
     if (!auth) return null;
-    const { user, get, post } = auth;
+    const { user, get, post, loading: authLoading } = auth;
     const [files, setFiles] = useState<any[]>([]);
     const [selectedFile, setSelectedFile] = useState<any>(null);
     const [isArchiveViewerOpen, setIsArchiveViewerOpen] = useState(false);
@@ -202,12 +203,16 @@ export default function FilesPage() {
     // Объединяем постоянные и временные файлы для отображения
     const allFiles = [...tempFiles, ...files];
 
+    if (!authLoading && !user) {
+        return notFound()
+    }
+
     return (
         <MainLayout>
-            <div className="flex h-[90vh] bg-gray-100">
+            <div className="flex max-lg:flex-col lg:h-[90vh] bg-gray-100">
                 {/* Sidebar */}
                 <div
-                    className={`bg-white border-r transition-all duration-300 ease-in-out flex flex-col ${isSidebarOpen ? 'w-80' : 'w-12'
+                    className={`max-lg:fixed bg-white border-r transition-all duration-300 ease-in-out flex flex-col ${isSidebarOpen ? 'w-80' : 'w-12'
                         }`}
                 >
                     <div className="border-b p-2 flex items-center justify-between">
@@ -224,12 +229,10 @@ export default function FilesPage() {
                         </button>
                     </div>
 
-                    {/* Uploader - only show when sidebar is open */}
                     {isSidebarOpen && (
                         <FileUploader onUpload={loadFiles} userId={user?.id} />
                     )}
 
-                    {/* Временные файлы */}
                     {isSidebarOpen && tempFiles.length > 0 && (
                         <div className="border-b border-yellow-200 bg-yellow-50 p-2">
                             <div className="flex items-center justify-between mb-2">

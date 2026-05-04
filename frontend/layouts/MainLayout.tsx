@@ -13,7 +13,6 @@ export default function MainLayout({ children, alertMess }: MainLayoutProps) {
   return (
     <>
       <div className="w-full flex items-center">
-
         <Navigation content={children} />
       </div>
 

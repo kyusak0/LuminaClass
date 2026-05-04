@@ -346,11 +346,11 @@ export default function RegisterPage() {
                 throw new Error(response.message || 'Ошибка отправки');
             }
             
-            showAlert('Заявка успешно отправлена', 'success');
+            showAlert('Заявка успешно отправлена, с Вами свяжется администратор', 'success');
             
             setTimeout(() => {
-                router.push(`/success#${response?.message || 'registered'}`);
-            }, 3000);
+                router.push(`/`);
+            }, 10000);
             
         } catch (err: any) {
             console.error('Registration error:', err);

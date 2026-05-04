@@ -10,7 +10,7 @@ import { Document, Packer, Paragraph, TextRun } from 'docx';
 import * as XLSX from 'xlsx';
 import { NEXT_PUBLIC_API_URL } from '@/lib/axios.config';
 
-const STORAGE_URL = '${NEXT_PUBLIC_API_URL}/storage/';
+const STORAGE_URL = `${NEXT_PUBLIC_API_URL}/storage/`;
 
 interface FileEditorProps {
   file: any;
@@ -364,8 +364,7 @@ export default function FileEditor({
         imageSrc = file.content;
         console.log('Using blob URL');
       } else if (file.path) {
-        // Это путь к файлу на сервере
-        imageSrc = `${STORAGE_URL}${file.path}`;
+        imageSrc = `${STORAGE_URL}`+`${file.path}`;
         console.log('Using server path:', imageSrc);
       }
 
