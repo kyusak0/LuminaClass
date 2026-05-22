@@ -9,6 +9,7 @@ use App\Http\Controllers\FileController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\LogController;
 
 /*
 |--------------------------------------------------------------------------
@@ -25,7 +26,6 @@ use App\Http\Controllers\OrganizationController;
 //     return $request->user();
 // });
 Route::middleware('api')->group(function () {
-    // Публичные маршруты
     Route::post('/register', [UserController::class, 'createBooking']);
     Route::post('/login', [UserController::class, 'login']);
     
@@ -75,6 +75,8 @@ Route::middleware('api')->group(function () {
         Route::get('/get-answers/{id}', [TaskController::class, 'getAns']);
         Route::get('/get-performance', [TaskController::class, 'getPerformance']);
         Route::get('/get-performance-student/{id}', [TaskController::class, 'getPerformanceStudent']);
+
+        Route::get('/get-logs', [LogController::class, 'getLogs']);
 
         Route::get('/user', [UserController::class, 'user']);
         Route::post('/logout', [UserController::class, 'logout']);

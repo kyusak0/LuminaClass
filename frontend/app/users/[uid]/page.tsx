@@ -8,7 +8,7 @@ import Popup from '@/components/popup/Popup';
 import Calendar from '@/components/calendar/Calendar';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { useAuth } from '@/context/authContext';
-import { Loader2, Upload, Link2, Copy, Check, FileText, ClipboardCheck, Users, BookOpen, MessageCircle, Calendar as CalendarIcon, Star } from 'lucide-react';
+import { Loader2, Upload, Link2, Copy, Check, FileText, ClipboardCheck, Users, BookOpen, MessageCircle, Calendar as CalendarIcon, Star, GraduationCap } from 'lucide-react';
 import { NEXT_PUBLIC_API_URL } from '@/lib/axios.config';
 
 interface UserStats {
@@ -60,6 +60,11 @@ export default function UserPage() {
   const [gradeDistribution, setGradeDistribution] = useState<GradeDistribution[]>([]);
   const [upcomingTask, setUpcomingTask] = useState<UpcomingTask | null>(null);
 
+  // Определяем, является ли пользователь студентом
+  const isStudent = useMemo(() => {
+    return userData?.role === 'student' || userData?.students?.length > 0;
+  }, [userData]);
+
   // Конфигурация для оценок
   const gradeConfig = {
     '5': { color: '#10B981', label: 'Отлично (5)' },
@@ -89,27 +94,31 @@ export default function UserPage() {
         groups: (user.groups?.length || 0) + (user.tutors?.length || 0)
       });
 
-      // Расчет распределения оценок
-      const gradeCounts = {
-        '5': 0, '4': 0, '3': 0, '2': 0, '0': 0
-      };
+      // Расчет распределения оценок ТОЛЬКО для студентов
+      if (user.role === 'student' || user.students?.length > 0) {
+        const gradeCounts = {
+          '5': 0, '4': 0, '3': 0, '2': 0, '0': 0
+        };
 
-      user.answers?.forEach((answer: any) => {
-        const mark = answer.mark?.toString() || '0';
-        if (gradeCounts.hasOwnProperty(mark)) {
-          gradeCounts[mark as keyof typeof gradeCounts]++;
-        }
-      });
+        user.answers?.forEach((answer: any) => {
+          const mark = answer.mark?.toString() || '0';
+          if (gradeCounts.hasOwnProperty(mark)) {
+            gradeCounts[mark as keyof typeof gradeCounts]++;
+          }
+        });
 
-      const totalAnswers = user.answers?.length || 0;
-      const distribution = Object.entries(gradeCounts).map(([grade, count]) => ({
-        name: grade,
-        value: totalAnswers > 0 ? (count / totalAnswers) * 100 : 0,
-        color: gradeConfig[grade as keyof typeof gradeConfig]?.color || '#6B7280',
-        label: gradeConfig[grade as keyof typeof gradeConfig]?.label || grade
-      }));
+        const totalAnswers = user.answers?.length || 0;
+        const distribution = Object.entries(gradeCounts).map(([grade, count]) => ({
+          name: grade,
+          value: totalAnswers > 0 ? (count / totalAnswers) * 100 : 0,
+          color: gradeConfig[grade as keyof typeof gradeConfig]?.color || '#6B7280',
+          label: gradeConfig[grade as keyof typeof gradeConfig]?.label || grade
+        }));
 
-      setGradeDistribution(distribution);
+        setGradeDistribution(distribution);
+      } else {
+        setGradeDistribution([]);
+      }
 
       // Поиск ближайшей задачи
       const now = new Date();
@@ -385,15 +394,19 @@ export default function UserPage() {
                   <Link href='/admin' className="hover:text-main transition-colors">
                     Администратор
                   </Link>
+                ) : userData?.role === 'teacher' ? (
+                  'Преподаватель'
                 ) : (
-                  userData?.role === 'teacher' ? 'Преподаватель' : 'Студент'
+                  <div className="flex items-center gap-1">
+                    <GraduationCap className="w-3 h-3" />
+                    <span>Студент</span>
+                  </div>
                 )}
               </div>
 
               {userData?.login && (
                 <div className="mt-4 w-full">
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm text-gray-600">Логин:</span>
+                  <div className="flex items-center justify-center p-3 bg-gray-50 rounded-lg">
                     <button
                       onClick={() => copyToClipboard(userData.login, 'login')}
                       className="flex items-center gap-2 text-sm font-mono bg-white px-3 py-1 rounded border hover:border-main transition-colors group"
@@ -437,90 +450,107 @@ export default function UserPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-              <Star className="w-5 h-5 text-main" />
-              Распределение оценок
-            </h2>
-            {stats.answers > 0 ? (
-              <div className="flex flex-col items-center justify-center gap-6">
-                <div className="w-64 h-64 flex-shrink-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={chartData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        outerRadius={80}
-                        innerRadius={45}
-                        fill="#8884d8"
-                        dataKey="value"
-                        paddingAngle={2}
-                      >
-                        {chartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(value: number | undefined) => {
-                          if (value === undefined) return ['0%', 'Доля'];
-                          return [`${value.toFixed(1)}%`, 'Доля'];
-                        }}
-                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="flex-1 space-y-3">
-                  {chartData.map((item, index) => (
-                    <div key={index} className="flex items-center justify-between gap-4 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-4 h-4 rounded-full"
-                          style={{ backgroundColor: item.color }}
+        {/* Блок с оценками - показываем только для студентов */}
+        {isStudent && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                <Star className="w-5 h-5 text-main" />
+                Распределение оценок
+              </h2>
+              {stats.answers > 0 ? (
+                <div className="flex flex-col items-center justify-center gap-6">
+                  <div className="w-64 h-64 flex-shrink-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={chartData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          outerRadius={80}
+                          innerRadius={45}
+                          fill="#8884d8"
+                          dataKey="value"
+                          paddingAngle={2}
+                        >
+                          {chartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value: number | undefined) => {
+                            if (value === undefined) return ['0%', 'Доля'];
+                            return [`${value.toFixed(1)}%`, 'Доля'];
+                          }}
+                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                         />
-                        <span className="text-sm font-medium text-gray-700">{item.label}</span>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="flex-1 space-y-3 w-full">
+                    {chartData.map((item, index) => (
+                      <div key={index} className="flex items-center justify-between gap-4 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-4 h-4 rounded-full"
+                            style={{ backgroundColor: item.color }}
+                          />
+                          <span className="text-sm font-medium text-gray-700">{item.label}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-gray-900">
+                            {item.value.toFixed(1)}%
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            ({Math.round((item.value / 100) * stats.answers)})
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-gray-900">
-                          {item.value.toFixed(1)}%
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          ({Math.round((item.value / 100) * stats.answers)})
-                        </span>
+                    ))}
+                    <div className="pt-3 mt-2 border-t border-gray-100">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Всего оценок:</span>
+                        <span className="font-semibold text-gray-900">{stats.answers}</span>
                       </div>
-                    </div>
-                  ))}
-                  <div className="pt-3 mt-2 border-t border-gray-100">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Всего оценок:</span>
-                      <span className="font-semibold text-gray-900">{stats.answers}</span>
                     </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-80 text-gray-500">
-                <div className="text-center">
-                  <Star className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Нет данных об оценках</p>
+              ) : (
+                <div className="flex items-center justify-center h-80 text-gray-500">
+                  <div className="text-center">
+                    <Star className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p>Нет данных об оценках</p>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <Calendar
-              tasks={userData?.tasks || []}
-              onTaskClick={(task) => {
-                router.push(`/tasks/${task.id}`);
-              }}
-            />
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <Calendar
+                tasks={userData?.tasks || []}
+                onTaskClick={(task) => {
+                  router.push(`/tasks/${task.id}`);
+                }}
+              />
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Для преподавателей и админов - показываем календарь на всю ширину */}
+        {!isStudent && (
+          <div className="grid grid-cols-1 gap-6 mb-8">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <Calendar
+                tasks={userData?.tasks || []}
+                onTaskClick={(task) => {
+                  router.push(`/tasks/${task.id}`);
+                }}
+              />
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Link

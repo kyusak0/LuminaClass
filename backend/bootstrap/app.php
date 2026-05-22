@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Middleware\Authenticate;
+use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Configuration\Middleware;
+
 /*
 |--------------------------------------------------------------------------
 | Create The Application
@@ -11,9 +15,17 @@
 |
 */
 
-$app = new Illuminate\Foundation\Application(
-    $_ENV['APP_BASE_PATH'] ?? dirname(__DIR__)
-);
+$app = Application::configure(basePath: dirname(__DIR__))
+    ->withRouting(
+        web: __DIR__.'/../routes/web.php',
+        commands: __DIR__.'/../routes/console.php',
+    )
+    ->withMiddleware(function (Middleware $middleware) {
+        $middleware->alias([
+            'auth' => Authenticate::class,
+        ]);
+    })
+    ->create();
 
 /*
 |--------------------------------------------------------------------------

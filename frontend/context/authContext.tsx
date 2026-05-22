@@ -45,15 +45,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const checkUser = async () => {
         try {
             const token = localStorage.getItem('token');
-            if (token) {
-                const response = await axios.get('/user');
-                setUser(response.data);
+            if (!token) {
+                setUser(null);
+                setLoading(false);
+                return;
             }
-        } catch (error) {
+
+            
+            // Токен уже добавится автоматически через interceptor
+            const response = await axios.get('/user');
+            setUser(response.data);
+            console.log(12)
+        } catch (error: any) {
+            console.error('Check user error:', error);
             localStorage.removeItem('token');
             setUser(null);
+
+            // Если не авторизован и не на странице логина
+            // if (window.location.pathname !== '/login') {
+            //     router.push('/login');
+            // }
+            
         } finally {
             setLoading(false);
+
         }
     };
 

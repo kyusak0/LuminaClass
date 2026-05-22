@@ -17,7 +17,6 @@ export default function MainLayout({ children, alertMess }: MainLayoutProps) {
       </div>
 
       <Alert alert={alertMess} />
-      {/* <Footer /> */}
     </>
   );
 }

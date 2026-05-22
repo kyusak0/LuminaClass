@@ -139,7 +139,7 @@ export default function FileList({ files, onSelect, onFilesUpdate, selectedId, l
             formData.append('file', zipBlob, archiveName);
             formData.append('author_id', localStorage.getItem('userId') || '1');
 
-            const uploadResponse = await fetch('${NEXT_PUBLIC_API_URL}/api/save-file', {
+            const uploadResponse = await fetch(`${NEXT_PUBLIC_API_URL}/api/save-file`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`

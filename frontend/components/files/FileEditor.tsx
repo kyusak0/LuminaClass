@@ -364,7 +364,7 @@ export default function FileEditor({
         imageSrc = file.content;
         console.log('Using blob URL');
       } else if (file.path) {
-        imageSrc = `${STORAGE_URL}`+`${file.path}`;
+        imageSrc = `${STORAGE_URL}` + `${file.path}`;
         console.log('Using server path:', imageSrc);
       }
 
@@ -466,23 +466,13 @@ export default function FileEditor({
         </div>
         <div className="flex gap-2">
           <button
-            onClick={handleDownloadOriginal}
-            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center gap-2 transition-colors"
-            title="Download original file from server"
+            onClick={handleDownloadEdited}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-2 transition-colors"
+            title="Download edited version"
           >
             <Download size={18} />
-            Download Original
+            Скачать
           </button>
-          {file.file_type !== 'image' && (
-            <button
-              onClick={handleDownloadEdited}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-2 transition-colors"
-              title="Download edited version"
-            >
-              <Download size={18} />
-              Download Edited
-            </button>
-          )}
           {file.file_type !== 'image' && (
             <button
               onClick={handleSave}
@@ -490,7 +480,7 @@ export default function FileEditor({
               className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 flex items-center gap-2 transition-colors disabled:opacity-50"
             >
               {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-              {isSaving ? 'Saving...' : 'Save Changes'}
+              {isSaving ? 'Сохраняем...' : 'Сохранить'}
             </button>
           )}
           <button
@@ -498,7 +488,7 @@ export default function FileEditor({
             className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center gap-2 transition-colors"
           >
             <X size={18} />
-            Close
+            Закрыть
           </button>
         </div>
       </div>

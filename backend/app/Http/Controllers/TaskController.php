@@ -8,8 +8,10 @@ use App\Models\User;
 use App\Models\Task;
 use App\Models\Group;
 use App\Models\Answer;
+use App\Models\Log;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class TaskController extends Controller
 {
@@ -24,6 +26,12 @@ class TaskController extends Controller
         ]);
 
         $task = Task::create($data);
+
+        Log::create([
+            'action' => 'creating Task',
+            'user_id' => Auth::user()->id,
+            'ip' => $request->ip()
+        ]);
 
         if(!empty($task)){
             return response()->json([
@@ -47,7 +55,7 @@ class TaskController extends Controller
     }
     
     public function getTask($id){
-        $task = Task::with(['user', 'answers', 'group', 'file'])->findOrFail($id);
+        $task = Task::with(['user', 'answers.user', 'answers.file', 'group', 'file'])->findOrFail($id);
         $answers = Answer::with(['user'])->where('task_id', '=', $id)->get();
         return response()->json([
             'data' => $task,
@@ -158,7 +166,6 @@ class TaskController extends Controller
                 ->get()
                 ->keyBy('task_id');
             
-            // Объединяем данные
             $data = $allTasks->map(function($task) use ($studentAnswers, $id) {
                 $answer = $studentAnswers->get($task->task_id);
                 

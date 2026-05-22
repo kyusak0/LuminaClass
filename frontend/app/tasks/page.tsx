@@ -163,7 +163,7 @@ export default function TaskPage() {
                 task_id: fileId || null,
                 title: form.title.value.trim(),
                 description: form.desc.value?.trim() || 'без описания',
-                deadline: form.deadline.value || '9999-12-31',
+                deadline: form.deadline.value || null,
                 user_id: user?.id || 0,
             };
 
@@ -231,6 +231,7 @@ export default function TaskPage() {
         if (!get) return;
         try {
             const res = await get('/get-tasks');
+            console.log(res.data)
 
             let filteredData: any = [];
             if (user?.role === 'student' && user?.id) {
@@ -244,7 +245,11 @@ export default function TaskPage() {
                     console.log(filteredData)
                 })
 
+            } else {
+                filteredData = res.data
             }
+
+            console.log('filtered data : ' + filteredData)
 
             const newRecords = filteredData.map((item: any) => ({
                 id: item.id?.toString(),
@@ -291,7 +296,7 @@ export default function TaskPage() {
                         title: 'Срок сдачи',
                         key: 'deadline',
                         data: {
-                            value: item.deadline,
+                            value: item.deadline ? new Date(item.deadline).toLocaleDateString('Ru-ru') : '',
                             size: 2,
                             add: `${Date.parse(item.deadline) <= Date.now() ? 'text-red-600' : ''}`
                         }
@@ -680,7 +685,7 @@ export default function TaskPage() {
                     </button>
                 </div>
 
-                {/* Таблица с отфильтрованными данными */}
+
                 <SearchTable
                     searchProps={getFilteredData()}
                     hideSearch={false}

@@ -46,13 +46,13 @@ input[type=submit] {
   cursor: pointer;
 }
 
-a {
+/* a {
   border-bottom: 2px solid var(--main);
 }
 
 a:hover {
   opacity: 0.8;
-}
+} */
 
 .inputs {
   position: relative;

@@ -68,7 +68,7 @@ interface SearchTableProps {
 
 // Интерфейс для компактного представления данных
 interface CompactRecord {
-    studentId: string | number;
+    studentId: any;
     studentName: string;
     grades: Map<string, { value: string | null; originalRecord: SearchRecord }>;
     taskIds: string[];
@@ -337,45 +337,6 @@ export default function SearchTable({
         }
     };
 
-    // Обработчик изменения оценки
-    const marksChange = async (e: ChangeEvent<HTMLSelectElement>, record: SearchRecord, column: Column) => {
-        e.preventDefault();
-        const newValue = e.target.value;
-
-        updateColumnValue(record.id, column.key || column.title, newValue);
-
-        try {
-            const markData = {
-                id: record.id,
-                mark: newValue,
-            };
-            const res = await api.gradeTask(markData);
-            const alertContent = (
-                <div>
-                    <div>Сообщение:</div>
-                    <div className="font-semibold my-1">{res.message}</div>
-                    <div className="text-xs text-gray-500">
-                        в {new Date().toLocaleTimeString()}, {new Date().toLocaleDateString()}
-                    </div>
-                </div>
-            );
-            setAlertMess({ content: alertContent });
-        } catch (error: any) {
-            const alertContent = (
-                <div>
-                    <div>Ошибка:</div>
-                    <div className="font-semibold my-1">{error.message}</div>
-                    <div className="text-xs text-gray-500">
-                        в {new Date().toLocaleTimeString()}, {new Date().toLocaleDateString()}
-                    </div>
-                </div>
-            );
-            setAlertMess({ content: alertContent });
-
-            updateColumnValue(record.id, column.key || column.title, column.data.value);
-        }
-    };
-
     // Обновление значения в колонке
     const updateColumnValue = (rowId: string | number | undefined, columnKey: string, newValue: string | null) => {
         if (!rowId) return;
@@ -491,7 +452,40 @@ export default function SearchTable({
 
     // Рендер компактной таблицы
     const renderCompactTable = () => {
-        const compactRecords = paginatedData as CompactRecord[];
+        const rawData = paginatedData as CompactRecord[];
+        if (!rawData.length) return null;
+
+        // Группируем по ИМЕНИ, чтобы схлопнуть разные ID
+        const groupedMap = new Map<string, CompactRecord>();
+
+        rawData.forEach(record => {
+            const key = record.studentName; // Используем имя как уникальный ключ
+
+            if (!groupedMap.has(key)) {
+                // Клонируем объект, чтобы не мутировать исходные данные
+                groupedMap.set(key, {
+                    ...record,
+                    grades: new Map(record.grades),
+                    taskIds: [...record.taskIds]
+                });
+            } else {
+                const existing = groupedMap.get(key)!;
+
+                // Сливаем оценки (Map)
+                record.grades.forEach((val, taskId) => {
+                    existing.grades.set(taskId, val);
+                });
+
+                // Сливаем taskIds (Array)
+                record.taskIds.forEach(taskId => {
+                    if (!existing.taskIds.includes(taskId)) {
+                        existing.taskIds.push(taskId);
+                    }
+                });
+            }
+        });
+
+        const compactRecords = Array.from(groupedMap.values());
         if (!compactRecords.length) return null;
 
         const allTaskIds = new Set<string>();
@@ -543,8 +537,8 @@ export default function SearchTable({
                                         >
                                             {grade?.value && grade.value !== 'null' && grade.value !== '—' ? (
                                                 <span className={`font-medium ${grade.value === '5' ? 'text-green-600' :
-                                                        grade.value === '2' ? 'text-red-600' :
-                                                            'text-gray-700'
+                                                    grade.value === '2' ? 'text-red-600' :
+                                                        'text-gray-700'
                                                     }`}>
                                                     {grade.value}
                                                 </span>

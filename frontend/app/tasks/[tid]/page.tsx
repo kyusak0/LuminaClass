@@ -10,6 +10,7 @@ import FileViewer from "@/components/files/FileViewer";
 import ArchiveViewer from "@/components/files/ArchiveViewer";
 import SearchTable, { SearchRecord } from "@/components/searchTable/SearchTable";
 import { NEXT_PUBLIC_API_URL } from "@/lib/axios.config";
+import { Clock, DownloadIcon, RefreshCw, SendIcon } from "lucide-react";
 
 // Типы
 interface TaskInfo {
@@ -685,7 +686,7 @@ export default function BookingPage() {
                   <div className="flex items-center">
                     <div className="text-sm text-gray-500 w-24">Срок сдачи:</div>
                     <div className={`font-medium ${Date.parse(task?.deadline) <= Date.now() ? 'text-red-600' : 'text-gray-900'}`}>
-                      {new Date(task?.deadline).toLocaleString('ru-RU')}
+                      {task.deadline ? new Date(task.deadline).toLocaleDateString('Ru-ru') : 'без срока'}
                     </div>
                   </div>
 
@@ -703,7 +704,7 @@ export default function BookingPage() {
                   onClick={() => downloadFile(task?.fileId || 0, task?.fileName || '')}
                   className="w-full px-4 py-3 bg-main text-white rounded-lg hover:bg-main-dark transition-colors flex items-center justify-center gap-2"
                 >
-                  <span>📥</span>
+                  <span><DownloadIcon /></span>
                   <span>Скачать задание</span>
                 </button>
               </div>
@@ -783,8 +784,9 @@ export default function BookingPage() {
                     disabled={disabled || submitting}
                     className="w-full py-3 bg-main text-white rounded-lg hover:bg-main-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    <span>{submitting ? '⏳' : '📤'}</span>
+                    
                     <span>{submitting ? 'Отправка...' : 'Отправить ответ'}</span>
+                    <span>{submitting ? <Clock /> : <SendIcon />}</span>
                   </button>
                 </form>
               </div>
@@ -813,7 +815,7 @@ export default function BookingPage() {
                 onClick={() => getTaskInfo(task.id)}
                 className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
               >
-                🔄 Обновить
+                Обновить <RefreshCw />
               </button>
             </div>
 

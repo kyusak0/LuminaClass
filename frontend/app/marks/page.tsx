@@ -6,6 +6,7 @@ import MainLayout from "@/layouts/MainLayout";
 import { useAuth } from "@/context/authContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback } from "react";
+import Loader from "@/components/loader/Loader";
 
 interface StudentPerformance {
     group_id: number;
@@ -605,12 +606,7 @@ export default function MarksPage() {
 
     if (authLoading || loading) {
         return (
-            <MainLayout>
-                <div className="h-170 flex flex-col items-center justify-center">
-                    <div className="text-lg text-gray-500">Загрузка данных...</div>
-                    <div className="mt-4 w-16 h-16 border-4 border-main border-t-transparent rounded-full animate-spin"></div>
-                </div>
-            </MainLayout>
+            <Loader />
         );
     }
 
@@ -618,7 +614,7 @@ export default function MarksPage() {
 
     return (
         <MainLayout>
-            <div className="mb-8">
+            <div className="mb-8 mt-15">
                 <h2 className="text-4xl font-bold mb-2">Журнал успеваемости</h2>
                 <div className="flex items-center gap-2 text-gray-600">
                     <span>Уровень доступа —</span>
