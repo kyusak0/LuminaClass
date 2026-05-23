@@ -17,7 +17,8 @@ return new class extends Migration
             $table->foreignId('answer_id')->constrained('files')->cascadeOnDelete();
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
             $table->text('students_comment')->nullable(); 
-            $table->text('teachers_comment')->nullable(); 
+            $table->text('teachers_comment')->nullable();
+            $table->string('slug')->nullable();
             $table->string('mark')->default('0');
             $table->timestamps();
         });

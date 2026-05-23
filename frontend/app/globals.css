@@ -46,14 +46,6 @@ input[type=submit] {
   cursor: pointer;
 }
 
-a {
-  border-bottom: 2px solid var(--main);
-}
-
-a:hover {
-  opacity: 0.8;
-}
-
 .inputs {
   position: relative;
   padding-top: 12px;

@@ -1,4 +1,3 @@
-// @/context/authContext.tsx
 'use client';
 import { createContext, useContext, useState, useEffect } from 'react';
 import axios from '@/lib/axios.config';
@@ -21,17 +20,46 @@ interface RegisterData {
 interface AuthContextType {
     user: any | null;
     loading: boolean;
-    register: (userData: RegisterData) => Promise<{ success: boolean; message?: string }>;
-    login: (credentials: LoginData) => Promise<{ success: boolean; message?: string }>;
+    register: (userData: RegisterData) => Promise<{ success: boolean; message?: string; data?: any }>;
+    login: (credentials: LoginData) => Promise<{ success: boolean; message?: string; data?: any }>;
     logout: () => Promise<void>;
     checkUser: () => Promise<void>;
-    post: (link: string, data: any) => Promise<any>;
+    post: (link: string, data: any, showSuccessMessage?: boolean) => Promise<any>;
     get: (link: string) => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => useContext(AuthContext);
+
+// Универсальная функция обработки ошибок Laravel
+const parseLaravelError = (error: any): string => {
+    // Если есть errors объект (валидация Laravel)
+    if (error.response?.data?.errors) {
+        const errors = error.response.data.errors;
+        // Берем первую ошибку из первого поля
+        const firstErrorKey = Object.keys(errors)[0];
+        const firstError = errors[firstErrorKey];
+        return Array.isArray(firstError) ? firstError[0] : firstError;
+    }
+    
+    // Если есть message
+    if (error.response?.data?.message) {
+        return error.response.data.message;
+    }
+    
+    // Если есть error
+    if (error.response?.data?.error) {
+        return error.response.data.error;
+    }
+    
+    // Стандартное сообщение
+    if (error.message) {
+        return error.message;
+    }
+    
+    return 'Произошла неизвестная ошибка';
+};
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [user, setUser] = useState(null);
@@ -64,11 +92,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             localStorage.setItem('token', token);
             setUser(user);
             router.push(`/users/${user.id}`);
-            return { success: true };
+            return { success: true, data: response.data };
         } catch (error: any) {
             return {
                 success: false,
-                message: error.message
+                message: parseLaravelError(error),
+                data: error.response?.data
             };
         }
     };
@@ -84,12 +113,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             } else {
                 router.push(`/users/${user.id}`);
             }
-
-            return { success: true };
+            return { success: true, data: response.data };
         } catch (error: any) {
             return {
                 success: false,
-                message: error.message
+                message: parseLaravelError(error),
+                data: error.response?.data
             };
         }
     };
@@ -106,38 +135,59 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
-    const post = async (link: string, data: any) => {
+    const post = async (link: string, data: any, showSuccessMessage: boolean = false) => {
         try {
             let headers: any = {};
 
             // Если данные не FormData, отправляем как JSON
             if (!(data instanceof FormData)) {
                 headers['Content-Type'] = 'application/json';
-            } else {
-                headers['Content-Type'] = 'multipart/form-data';
             }
 
             const response = await axios.post(link, data, { headers });
-            return response.data;
+            
+            // Если нужно показать успешное сообщение
+            if (showSuccessMessage && response.data?.message) {
+                // Здесь можно добавить toast или другое уведомление
+                console.log('Success:', response.data.message);
+            }
+            
+            return {
+                success: true,
+                data: response.data,
+                message: response.data?.message || 'Операция выполнена успешно'
+            };
         } catch (error: any) {
+            const errorMessage = parseLaravelError(error);
+            
             return {
                 success: false,
-                message: error.message
+                message: errorMessage,
+                data: error.response?.data,
+                status: error.response?.status
             };
         }
-    }
+    };
 
     const get = async (link: string) => {
         try {
             const response = await axios.get(link);
-            return response.data;
+            return {
+                success: true,
+                data: response.data,
+                message: response.data?.message || 'Данные получены успешно'
+            };
         } catch (error: any) {
+            const errorMessage = parseLaravelError(error);
+            
             return {
                 success: false,
-                message: error.message
+                message: errorMessage,
+                data: error.response?.data,
+                status: error.response?.status
             };
         }
-    }
+    };
 
     const value = {
         user,

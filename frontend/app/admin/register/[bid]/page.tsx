@@ -2,7 +2,7 @@
 
 import { Organization } from "@/api";
 import SearchTable, { SearchRecord } from "@/components/searchTable/SearchTable";
-import MainLayout from "@/layouts/MainLayout";
+import AdminLayout from "@/layouts/AdminLayout";
 import { convertSegmentPathToStaticExportFilename } from "next/dist/shared/lib/segment-cache/segment-value-encoding";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -471,7 +471,7 @@ export default function BookingPage() {
     };
 
     return (
-        <MainLayout alertMess={alertMess?.content}>
+        <AdminLayout alertMess={alertMess?.content}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     {/* Левая колонка - Информация о заявке */}
@@ -750,6 +750,6 @@ export default function BookingPage() {
                     </div>
                 </div>
             </div>
-        </MainLayout>
+        </AdminLayout>
     )
 }

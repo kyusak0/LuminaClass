@@ -1,7 +1,7 @@
 'use client'
 
 import SearchTable, { SearchRecord } from "@/components/searchTable/SearchTable";
-import MainLayout from "@/layouts/MainLayout";
+import AdminLayout from "@/layouts/AdminLayout";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { FormEvent, useEffect, useState, useMemo } from "react";
@@ -263,16 +263,16 @@ export default function GroupPage() {
 
     if (loading) {
         return (
-            <MainLayout>
+            <AdminLayout>
                 <div className="h-170 flex flex-col items-center justify-center">
                     Загрузка...
                 </div>
-            </MainLayout>
+            </AdminLayout>
         );
     }
 
     return (
-        <MainLayout alertMess={alertMess?.content}>
+        <AdminLayout alertMess={alertMess?.content}>
             <div className="mb-6">
                 <div className="flex items-end gap-5 mb-4">
                     <h2 className="text-4xl font-bold">
@@ -402,6 +402,6 @@ export default function GroupPage() {
                     В группе пока нет учащихся
                 </div>
             )}
-        </MainLayout>
+        </AdminLayout>
     );
 }

@@ -8,11 +8,30 @@ use App\Models\User;
 use App\Models\Task;
 use App\Models\Group;
 use App\Models\Answer;
+use App\Models\Log as ActionLog; // Переименовываем импорт чтобы избежать конфликта
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class TaskController extends Controller
 {
+    private function logAction($action, $method, $userId, $ip, $details = null)
+    {
+        if (!$userId) {
+            $user = Auth::user();
+            $userId = $user ? $user->id : null;
+        }
+        
+        return ActionLog::create([
+            'action' => $action,
+            'method' => $method,
+            'user_id' => $userId,
+            'ip' => $ip,
+            'details' => $details ? json_encode($details, JSON_UNESCAPED_UNICODE) : null,
+            'created_at' => now()
+        ]);
+    }
+
     public function createTask(Request $request){
         $data = $request->validate([
             'group_id' => 'required|integer|exists:groups,id',
@@ -25,11 +44,32 @@ class TaskController extends Controller
 
         $task = Task::create($data);
 
+        // Логируем создание задания
+        $this->logAction(
+            'Создание задания',
+            'POST',
+            Auth::user()->id ?? $data['user_id'],
+            $request->ip(),
+            [
+                'task_id' => $task->id,
+                'task_title' => $data['title'],
+                'group_id' => $data['group_id'],
+                'file_id' => $data['task_id'],
+                'deadline' => $data['deadline'],
+                'description' => $data['description'] ?? null
+            ]
+        );
+
         if(!empty($task)){
             return response()->json([
-                'message' => 'успех'
-            ]);
+                'message' => 'успех',
+                'task_id' => $task->id
+            ], 200, [], JSON_UNESCAPED_UNICODE);
         }
+        
+        return response()->json([
+            'message' => 'Ошибка при создании задания'
+        ], 500);
     }
 
     public function allTasks(){
@@ -47,7 +87,7 @@ class TaskController extends Controller
     }
     
     public function getTask($id){
-        $task = Task::with(['user', 'answers', 'group', 'file'])->findOrFail($id);
+        $task = Task::with(['user', 'answers.user', 'answers.file', 'group', 'file'])->findOrFail($id);
         $answers = Answer::with(['user'])->where('task_id', '=', $id)->get();
         return response()->json([
             'data' => $task,
@@ -64,12 +104,35 @@ class TaskController extends Controller
         ]);
 
         $answer = Answer::create($data);
+        
+        // Получаем информацию о задании для лога
+        $task = Task::find($data['task_id']);
+
+        // Логируем отправку ответа
+        $this->logAction(
+            'Отправка ответа на задание',
+            'POST',
+            $data['user_id'],
+            $request->ip(),
+            [
+                'answer_id' => $answer->id,
+                'task_id' => $data['task_id'],
+                'task_title' => $task ? $task->title : null,
+                'file_id' => $data['answer_id'],
+                'student_comment' => $data['students_comment'] ?? null
+            ]
+        );
 
         if(!empty($answer)){
             return response()->json([
-                'message' => 'успех'
-            ]);
+                'message' => 'успех',
+                'answer_id' => $answer->id
+            ], 200, [], JSON_UNESCAPED_UNICODE);
         }
+        
+        return response()->json([
+            'message' => 'Ошибка при отправке ответа'
+        ], 500);
     }
 
     public function allAnswers(){
@@ -80,7 +143,6 @@ class TaskController extends Controller
     }
 
     public function gradeTask(Request $request){
-
         $validated = $request->validate([
             'id' => 'required|integer|exists:answers,id',
             'teachers_comment' => 'nullable|string',
@@ -89,13 +151,36 @@ class TaskController extends Controller
         
         $answer = Answer::findOrFail($request->id);
         
+        // Сохраняем старые данные для лога
+        $oldData = [
+            'mark' => $answer->mark,
+            'teachers_comment' => $answer->teachers_comment
+        ];
+        
         $answer->update([
             'teachers_comment' => $request->teachers_comment,
             'mark' => $request->mark,
         ]);
         
+        // Логируем выставление оценки
+        $this->logAction(
+            'Выставление оценки за задание',
+            'PUT',
+            Auth::user()->id,
+            $request->ip(),
+            [
+                'answer_id' => $answer->id,
+                'task_id' => $answer->task_id,
+                'student_id' => $answer->user_id,
+                'old_mark' => $oldData['mark'],
+                'new_mark' => $request->mark,
+                'old_comment' => $oldData['teachers_comment'],
+                'new_comment' => $request->teachers_comment
+            ]
+        );
+        
         return response()->json([
-            'message' => 'Оценка успешно изменена, чтобы изменения отобрализь корректно советуем обновить страницу'
+            'message' => 'Оценка успешно изменена, чтобы изменения отобразились корректно советуем обновить страницу'
         ]);
     }
     
@@ -103,9 +188,7 @@ class TaskController extends Controller
         set_time_limit(300); 
         
         $tasksPerfomance = Task::with([
-            'answers'
-            => function($query) {
-            
+            'answers' => function($query) {
                 $query->select(['id', 'user_id', 'mark', 'task_id', 'answer_id', 'created_at'])
                     ->latest()
                     ->limit(50);
@@ -131,7 +214,6 @@ class TaskController extends Controller
                 ->first();
             
             if (!$studentGroup) {
-                // Если студент не состоит ни в одной группе, возвращаем пустой массив
                 return response()->json([
                     'data' => [],
                     'success' => true,
@@ -139,7 +221,6 @@ class TaskController extends Controller
                 ]);
             }
             
-            // Получаем задания только для группы студента
             $allTasks = DB::table('tasks')
                 ->join('groups', 'tasks.group_id', '=', 'groups.id')
                 ->where('tasks.group_id', '=', $studentGroup->group_id)
@@ -152,13 +233,11 @@ class TaskController extends Controller
                 ])
                 ->get();
             
-            // Получаем ответы студента
             $studentAnswers = DB::table('answers')
                 ->where('user_id', '=', $id)
                 ->get()
                 ->keyBy('task_id');
             
-            // Объединяем данные
             $data = $allTasks->map(function($task) use ($studentAnswers, $id) {
                 $answer = $studentAnswers->get($task->task_id);
                 
@@ -186,5 +265,131 @@ class TaskController extends Controller
             ], 500);
         }
     }
-   
+    
+    /**
+     * Обновление задания
+     */
+    public function updateTask($id, Request $request)
+    {
+        $request->validate([
+            'title' => 'sometimes|string|max:255',
+            'description' => 'nullable|string',
+            'deadline' => 'sometimes|string',
+            'task_id' => 'sometimes|integer|exists:files,id'
+        ]);
+        
+        $task = Task::findOrFail($id);
+        
+        // Сохраняем старые данные
+        $oldData = [
+            'title' => $task->title,
+            'description' => $task->description,
+            'deadline' => $task->deadline,
+            'file_id' => $task->task_id
+        ];
+        
+        $task->update($request->only(['title', 'description', 'deadline', 'task_id']));
+        
+        // Логируем обновление задания
+        $this->logAction(
+            'Обновление задания',
+            'PUT',
+            Auth::user()->id,
+            $request->ip(),
+            [
+                'task_id' => $task->id,
+                'old_data' => $oldData,
+                'new_data' => [
+                    'title' => $request->input('title', $oldData['title']),
+                    'description' => $request->input('description', $oldData['description']),
+                    'deadline' => $request->input('deadline', $oldData['deadline']),
+                    'file_id' => $request->input('task_id', $oldData['file_id'])
+                ]
+            ]
+        );
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Задание успешно обновлено',
+            'data' => $task
+        ], 200, [], JSON_UNESCAPED_UNICODE);
+    }
+    
+    /**
+     * Удаление задания
+     */
+    public function deleteTask($id, Request $request)
+    {
+        $task = Task::findOrFail($id);
+        
+        // Сохраняем данные для лога
+        $taskData = [
+            'task_id' => $task->id,
+            'title' => $task->title,
+            'group_id' => $task->group_id,
+            'answers_count' => $task->answers()->count()
+        ];
+        
+        // Удаляем связанные ответы
+        Answer::where('task_id', $id)->delete();
+        
+        $task->delete();
+        
+        // Логируем удаление задания
+        $this->logAction(
+            'Удаление задания',
+            'DELETE',
+            Auth::user()->id,
+            $request->ip(),
+            $taskData
+        );
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Задание успешно удалено'
+        ], 200, [], JSON_UNESCAPED_UNICODE);
+    }
+    
+    /**
+     * Обновление ответа
+     */
+    public function updateAnswer($id, Request $request)
+    {
+        $request->validate([
+            'answer_id' => 'sometimes|exists:files,id',
+            'students_comment' => 'nullable|string'
+        ]);
+        
+        $answer = Answer::findOrFail($id);
+        
+        // Сохраняем старые данные
+        $oldData = [
+            'file_id' => $answer->answer_id,
+            'comment' => $answer->students_comment
+        ];
+        
+        $answer->update($request->only(['answer_id', 'students_comment']));
+        
+        // Логируем обновление ответа
+        $this->logAction(
+            'Обновление ответа на задание',
+            'PUT',
+            Auth::user()->id,
+            $request->ip(),
+            [
+                'answer_id' => $answer->id,
+                'task_id' => $answer->task_id,
+                'old_file_id' => $oldData['file_id'],
+                'new_file_id' => $request->input('answer_id', $oldData['file_id']),
+                'old_comment' => $oldData['comment'],
+                'new_comment' => $request->input('students_comment', $oldData['comment'])
+            ]
+        );
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Ответ успешно обновлен',
+            'data' => $answer
+        ], 200, [], JSON_UNESCAPED_UNICODE);
+    }
 }

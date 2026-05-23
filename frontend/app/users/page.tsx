@@ -1,7 +1,7 @@
 'use client'
 
 import { useAuth } from "@/context/authContext";
-import MainLayout from "@/layouts/MainLayout";
+import AdminLayout from "@/layouts/AdminLayout";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback } from "react";
@@ -21,13 +21,13 @@ export default function UserPanel() {
     const [users, setUsers] = useState<AppUser[]>([]);
     const [loading, setLoading] = useState(true);
     const [filterRole, setFilterRole] = useState<string>('');
-    
+
     const auth = useAuth();
-    
+
     if (!auth) {
         return null;
     }
-    
+
     const { user, get, post } = auth;
 
     useEffect(() => {
@@ -40,15 +40,24 @@ export default function UserPanel() {
         try {
             setLoading(true);
             const response = await get('get-users');
-            
+
             if (response && response.success === false) {
                 throw new Error(response.message);
             }
-            
-            const usersData = response?.data || response || [];
+
+            // Безопасное получение массива пользователей
+            let usersData: AppUser[] = [];
+
+
+            usersData = response.data.data;
+
+            alert(usersData.length)
+
+
             setUsers(usersData);
         } catch (error) {
             console.error('Ошибка загрузки пользователей:', error);
+            setUsers([]);
         } finally {
             setLoading(false);
         }
@@ -58,11 +67,11 @@ export default function UserPanel() {
         try {
             const action = isBlocked ? 'unblock' : 'block';
             const response = await post(`users/${userId}/${action}`, {});
-            
+
             if (response && response.success === false) {
                 throw new Error(response.message);
             }
-            
+
             await loadUsers();
             return true;
         } catch (error: any) {
@@ -96,15 +105,26 @@ export default function UserPanel() {
         return 'text-main bg-main/10';
     };
 
-    // Фильтруем пользователей по роли
+    // Фильтруем пользователей по роли с проверкой на массив
     const filteredUsers = useMemo(() => {
+        // Убеждаемся, что users это массив
+        if (!Array.isArray(users)) {
+            console.warn('users не является массивом:', users);
+            return [];
+        }
+
         if (!filterRole) {
             return users;
         }
-        return users.filter(u => u.role === filterRole);
+        return users.filter(u => u && u.role === filterRole);
     }, [users, filterRole]);
 
     const searchTableData = useMemo<SearchRecord[]>(() => {
+        // Проверяем, что filteredUsers это массив
+        if (!Array.isArray(filteredUsers)) {
+            return [];
+        }
+
         return filteredUsers.map(user => ({
             id: user.id,
             columns: [
@@ -112,10 +132,9 @@ export default function UserPanel() {
                     title: 'ФИО',
                     key: 'fullname',
                     data: {
-                        value: `${user.name}`,
+                        value: `${user.name || ''}`,
                         size: 3,
                         isFilter: true,
-                        // Убираем isLink и tag, чтобы не было отдельной ссылки
                         tag: undefined,
                         isLink: undefined
                     }
@@ -124,7 +143,7 @@ export default function UserPanel() {
                     title: 'Email',
                     key: 'email',
                     data: {
-                        value: user.login,
+                        value: user.login || '',
                         size: 3,
                         isFilter: true
                     }
@@ -133,7 +152,7 @@ export default function UserPanel() {
                     title: 'Роль',
                     key: 'role',
                     data: {
-                        value: getRoleName(user.role),
+                        value: getRoleName(user.role || 'student'),
                         size: 2,
                         isFilter: true
                     }
@@ -145,14 +164,14 @@ export default function UserPanel() {
                         value: getUserStatus(user),
                         size: 2,
                         isFilter: true,
-                        add: `px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(user)} inline-block`
+                        add: `text-xs font-medium ${getStatusColor(user)}`
                     }
                 },
                 {
                     title: 'ID',
                     key: 'id',
                     data: {
-                        value: user.id.toString(),
+                        value: user.id?.toString() || '',
                         size: 1,
                         isFilter: false
                     }
@@ -169,16 +188,16 @@ export default function UserPanel() {
     // Actions с правильными типами
     const actions = useMemo(() => {
         const baseActions: any[] = [];
-        
+
         // Кнопка блокировки/разблокировки
         if (user && user.role === 'admin') {
             baseActions.push({
                 label: 'Заблокировать',
                 icon: '🔒',
                 onClick: async (record: SearchRecord) => {
-                    const targetUser = users.find(u => u.id === record.id);
+                    const targetUser = users.find(u => u && u.id === record.id);
                     if (!targetUser) return;
-                    
+
                     if (targetUser.role === 'admin') {
                         alert('Нельзя блокировать администратора');
                         return;
@@ -187,30 +206,29 @@ export default function UserPanel() {
                         alert('Нельзя заблокировать самого себя');
                         return;
                     }
-                    
+
                     const isBlocked = targetUser.is_blocked || false;
                     const actionText = isBlocked ? 'разблокировать' : 'заблокировать';
                     const confirmMessage = `Вы уверены, что хотите ${actionText} пользователя ${targetUser.name}?`;
-                    
+
                     if (confirm(confirmMessage)) {
                         await toggleBlockUser(record.id as number, isBlocked);
                     }
                 },
                 className: (record: SearchRecord) => {
-                    const targetUser = users.find(u => u.id === record.id);
+                    const targetUser = users.find(u => u && u.id === record.id);
                     if (targetUser?.is_blocked) {
                         return 'text-green-600 hover:text-green-800';
                     }
                     return 'text-orange-600 hover:text-orange-800';
                 },
                 getLabel: (record: SearchRecord) => {
-                    const targetUser = users.find(u => u.id === record.id);
+                    const targetUser = users.find(u => u && u.id === record.id);
                     return targetUser?.is_blocked ? 'Разблокировать' : 'Заблокировать';
                 }
             });
         }
-        
-        
+
         return baseActions;
     }, [users, user]);
 
@@ -227,20 +245,23 @@ export default function UserPanel() {
     }, []);
 
     const stats = useMemo(() => {
+        // Убеждаемся, что users это массив
+        const usersArray = Array.isArray(users) ? users : [];
+
         return {
-            total: users.length,
-            students: users.filter(u => u.role === 'student').length,
-            teachers: users.filter(u => u.role === 'teacher').length,
-            parents: users.filter(u => u.role === 'parent').length,
-            admins: users.filter(u => u.role === 'admin').length,
-            blocked: users.filter(u => u.is_blocked).length,
-            active: users.filter(u => !u.is_blocked).length
+            total: usersArray.length,
+            students: usersArray.filter(u => u && u.role === 'student').length,
+            teachers: usersArray.filter(u => u && u.role === 'teacher').length,
+            parents: usersArray.filter(u => u && u.role === 'parent').length,
+            admins: usersArray.filter(u => u && u.role === 'admin').length,
+            blocked: usersArray.filter(u => u && u.is_blocked).length,
+            active: usersArray.filter(u => u && !u.is_blocked).length
         };
     }, [users]);
 
     if (loading) {
         return (
-            <MainLayout>
+            <AdminLayout>
                 <div className="h-170 flex flex-col items-center justify-center">
                     <svg className="animate-spin h-10 w-10 text-green-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -248,7 +269,7 @@ export default function UserPanel() {
                     </svg>
                     <p className="text-gray-600">Загрузка пользователей...</p>
                 </div>
-            </MainLayout>
+            </AdminLayout>
         );
     }
 
@@ -257,7 +278,7 @@ export default function UserPanel() {
     }
 
     return (
-        <MainLayout>
+        <AdminLayout>
             <div className="mb-8">
                 <h2 className="text-4xl font-bold">
                     <Link href='/admin' className="hover:text-green-600 transition-colors">
@@ -273,35 +294,35 @@ export default function UserPanel() {
 
             {/* Статистика - кликабельные кнопки фильтрации */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
-                <div 
+                <div
                     className={`p-4 rounded-lg border cursor-pointer transition-colors ${filterRole === '' ? 'bg-gray-200 border-gray-400' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}
                     onClick={() => handleFilterChange('')}
                 >
                     <div className="text-sm text-gray-600 font-semibold">Всего</div>
                     <div className="text-2xl font-bold text-gray-700">{stats.total}</div>
                 </div>
-                <div 
+                <div
                     className={`p-4 rounded-lg border cursor-pointer transition-colors ${filterRole === 'student' ? 'bg-blue-200 border-blue-400' : 'bg-blue-50 border-blue-200 hover:bg-blue-100'}`}
                     onClick={() => handleFilterChange('student')}
                 >
                     <div className="text-sm text-blue-600 font-semibold">Ученики</div>
                     <div className="text-2xl font-bold text-blue-700">{stats.students}</div>
                 </div>
-                <div 
+                <div
                     className={`p-4 rounded-lg border cursor-pointer transition-colors ${filterRole === 'teacher' ? 'bg-green-200 border-green-400' : 'bg-green-50 border-green-200 hover:bg-green-100'}`}
                     onClick={() => handleFilterChange('teacher')}
                 >
                     <div className="text-sm text-green-600 font-semibold">Учителя</div>
                     <div className="text-2xl font-bold text-green-700">{stats.teachers}</div>
                 </div>
-                <div 
+                <div
                     className={`p-4 rounded-lg border cursor-pointer transition-colors ${filterRole === 'parent' ? 'bg-purple-200 border-purple-400' : 'bg-purple-50 border-purple-200 hover:bg-purple-100'}`}
                     onClick={() => handleFilterChange('parent')}
                 >
                     <div className="text-sm text-purple-600 font-semibold">Родители</div>
                     <div className="text-2xl font-bold text-purple-700">{stats.parents}</div>
                 </div>
-                <div 
+                <div
                     className={`p-4 rounded-lg border cursor-pointer transition-colors ${filterRole === 'admin' ? 'bg-gray-200 border-gray-400' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}
                     onClick={() => handleFilterChange('admin')}
                 >
@@ -328,19 +349,19 @@ export default function UserPanel() {
             </div>
 
             <div className="mt-8 flex gap-4">
-                <Link 
+                <Link
                     href='/admin/register'
                     className="inline-flex items-center justify-center px-6 py-2 border border-transparent text-base font-medium rounded-md text-white bg-green-600 hover:bg-green-700 transition-colors"
                 >
                     Посмотреть заявки
                 </Link>
-                <Link 
+                <Link
                     href='/admin/users/create'
                     className="inline-flex items-center justify-center px-6 py-2 border border-green-600 text-base font-medium rounded-md text-green-600 bg-white hover:bg-green-50 transition-colors"
                 >
                     + Добавить пользователя
                 </Link>
             </div>
-        </MainLayout>
+        </AdminLayout>
     );
 }

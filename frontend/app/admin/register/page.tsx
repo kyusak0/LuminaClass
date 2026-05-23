@@ -1,7 +1,7 @@
 'use client'
 
 import { useAuth } from "@/context/authContext";
-import MainLayout from "@/layouts/MainLayout";
+import AdminLayout from "@/layouts/AdminLayout";
 import Link from "next/link";
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { notFound, useRouter } from 'next/navigation';
@@ -196,7 +196,7 @@ export default function BookingsPage() {
 
     if (loading) {
         return (
-            <MainLayout>
+            <AdminLayout>
                 <div className="h-170 flex flex-col items-center justify-center">
                     <svg className="animate-spin h-10 w-10 text-green-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -204,7 +204,7 @@ export default function BookingsPage() {
                     </svg>
                     <p className="text-gray-600">Загрузка заявок...</p>
                 </div>
-            </MainLayout>
+            </AdminLayout>
         );
     }
 
@@ -213,7 +213,7 @@ export default function BookingsPage() {
     }
 
     return (
-        <MainLayout>
+        <AdminLayout>
             <div className="mb-8">
                 <h2 className="text-4xl font-bold">
                     <Link href='/admin' className="hover:text-green-600 transition-colors">
@@ -296,6 +296,6 @@ export default function BookingsPage() {
             </div>
 
             <Alert alert={alertMess?.content} />
-        </MainLayout>
+        </AdminLayout>
     );
 }

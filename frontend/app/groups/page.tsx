@@ -1,7 +1,7 @@
 'use client'
 
 import SearchTable, { SearchRecord } from "@/components/searchTable/SearchTable";
-import MainLayout from "@/layouts/MainLayout";
+import AdminLayout from "@/layouts/AdminLayout";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
@@ -194,11 +194,11 @@ export default function GroupsPage() {
 
     if (loading && !user) {
         return (
-            <MainLayout>
+            <AdminLayout>
                 <div className="h-170 flex flex-col items-center justify-center">
                     Загрузка...
                 </div>
-            </MainLayout>
+            </AdminLayout>
         );
     }
 
@@ -207,7 +207,7 @@ export default function GroupsPage() {
     }
 
     return (
-        <MainLayout alertMess={alertMess?.content}>
+        <AdminLayout alertMess={alertMess?.content}>
             <h2 className="text-4xl font-bold mb-8">
                 <Link href='/admin' className="hover:text-main transition-colors">
                     Панель Администратора
@@ -312,6 +312,6 @@ export default function GroupsPage() {
                     onRowClick={handleRowClick}
                 />
             )}
-        </MainLayout>
+        </AdminLayout>
     );
 }

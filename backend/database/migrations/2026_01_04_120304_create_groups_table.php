@@ -16,6 +16,8 @@ return new class extends Migration
             $table->string('name');
             $table->string('desc')->nullable();
             $table->string('subject');
+            $table->string('slug')->nullable();
+
             // $table->foreignId('organization_id')->constrained('organizations')->cascadeOnDelete();
             $table->timestamps();
         });

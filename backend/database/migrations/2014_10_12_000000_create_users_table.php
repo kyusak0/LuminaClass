@@ -18,6 +18,8 @@ return new class extends Migration
             $table->string('password');
             $table->enum('role', ['student', 'teacher', 'parent', 'admin'])->default('student');
             $table->text('avatar')->nullable();
+            $table->boolean('is_blocked')->nullable();
+            $table->timestamp('blocked_at')->nullable();
             $table->timestamps();
         });
     }

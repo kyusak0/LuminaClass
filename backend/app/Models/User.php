@@ -22,7 +22,9 @@ class User extends Authenticatable
         'login',
         'password',
         'avatar',
-        'role'
+        'role',
+        'is_blocked',
+        'blocked_at',
     ];
 
     public function files(){
@@ -99,6 +101,53 @@ class User extends Authenticatable
         return $this->parents()->wherePivotIn('guardian_type', ['parent', 'guardian']);
     }
 
+    public function isBlocked(): bool
+    {
+        return (bool) $this->is_blocked;
+    }
+
+    // Блокировка пользователя
+    public function block(): void
+    {
+        $this->update([
+            'is_blocked' => true,
+            'blocked_at' => now(),
+        ]);
+    }
+
+    public function getBlockReason(): ?string
+    {
+        if (!$this->is_blocked) {
+            return null;
+        }
+        
+        return 'Пользователь заблокирован администратором';
+    }
+
+    // Mutator для автоматической установки даты при блокировке
+    public function setIsBlockedAttribute($value)
+    {
+        $this->attributes['is_blocked'] = $value;
+        
+        if ($value) {
+            $this->attributes['blocked_at'] = now();
+        } elseif (!$value && isset($this->attributes['blocked_at'])) {
+            $this->attributes['blocked_at'] = null;
+        }
+    }
+
+    // Scope для получения только активных пользователей
+    public function scopeActive($query)
+    {
+        return $query->where('is_blocked', false);
+    }
+
+    // Scope для получения заблокированных пользователей
+    public function scopeBlocked($query)
+    {
+        return $query->where('is_blocked', true);
+    }
+
     /**
      * The attributes that should be hidden for serialization.
      *
@@ -115,6 +164,8 @@ class User extends Authenticatable
      * @var array<string, string>
      */
     protected $casts = [
+        'is_blocked' => 'boolean',
+        'blocked_at' => 'datetime',
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];

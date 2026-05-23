@@ -11,9 +11,26 @@ use PhpOffice\PhpWord\IOFactory as WordIOFactory;
 use PhpOffice\PhpWord\Element\TextRun;
 
 use App\Models\File;
+use App\Models\Log as ActionLog; // Добавляем модель для логирования действий
 
 class FileController extends Controller
 {
+    private function logAction($action, $method, $userId, $ip, $details = null)
+    {
+        if (!$userId) {
+            $userId = auth()->id();
+        }
+        
+        return ActionLog::create([
+            'action' => $action,
+            'method' => $method,
+            'user_id' => $userId,
+            'ip' => $ip,
+            'details' => $details ? json_encode($details, JSON_UNESCAPED_UNICODE) : null,
+            'created_at' => now()
+        ]);
+    }
+
     public function saveFile(Request $request)
     {
         $request->validate([
@@ -28,8 +45,7 @@ class FileController extends Controller
                         ->where('author_id', $request->author_id)
                         ->first();
 
-        
-            $path = $uploadedFile->store('uploads', 'public');
+        $path = $uploadedFile->store('uploads', 'public');
 
         $file = new File();
         $file->original_name = $uploadedFile->getClientOriginalName();
@@ -39,11 +55,25 @@ class FileController extends Controller
         $file->author_id = $request->author_id;
         $file->save();
         
+        // Логируем загрузку файла
+        $this->logAction(
+            'Загрузка файла',
+            'POST',
+            $request->author_id,
+            $request->ip(),
+            [
+                'file_id' => $file->id,
+                'file_name' => $file->original_name,
+                'file_size' => $file->size,
+                'mime_type' => $file->mime_type
+            ]
+        );
+        
         return response()->json([
             'message' => 'Файл успешно загружен',
             'file_id' => $file->id,
             'url' => Storage::url($path)
-        ], 200,[], JSON_UNESCAPED_UNICODE);
+        ], 200, [], JSON_UNESCAPED_UNICODE);
         
     }
 
@@ -61,17 +91,8 @@ class FileController extends Controller
         ]);
     }
 
-    public function loadFile($id){
+    public function loadFile($id, Request $request){
         $file = File::findOrFail($id);
-        
-        // доступ
-        // $user = auth()->user();
-        // if ($user && $file->author_id !== $user->id && !$user->hasRole('admin')) {
-        //     return response()->json([
-        //         'success' => false,
-        //         'message' => 'Доступ запрещен',
-        //     ], 403);
-        // }
         
         $filePath = 'public/' . $file->path;
         
@@ -79,7 +100,7 @@ class FileController extends Controller
             Log::warning('File not found in storage', [
                 'file_id' => $file->id,
                 'path' => $file->path,
-                'user_id' => $user->id ?? null,
+                'user_id' => auth()->id() ?? null,
             ]);
             
             return response()->json([
@@ -88,11 +109,17 @@ class FileController extends Controller
             ], 404);
         }
 
-        Log::info('File downloaded', [
-            'file_id' => $file->id,
-            'file_name' => $file->original_name,
-            'user_id' => $user->id ?? null,
-        ]);
+        // Логируем скачивание файла
+        $this->logAction(
+            'Скачивание файла',
+            'GET',
+            auth()->id(),
+            $request->ip(),
+            [
+                'file_id' => $file->id,
+                'file_name' => $file->original_name
+            ]
+        );
 
         // Скачиваем файл
         return Storage::download($filePath, $file->original_name, [
@@ -101,21 +128,39 @@ class FileController extends Controller
         ]);
     }
 
-    public function deleteFile($id) {
+    public function deleteFile($id, Request $request) {
         $file = File::findOrFail($id);
+        
+        // Сохраняем данные файла для лога
+        $fileData = [
+            'file_id' => $file->id,
+            'original_name' => $file->original_name,
+            'size' => $file->size,
+            'mime_type' => $file->mime_type,
+            'author_id' => $file->author_id
+        ];
         
         $filePath = 'public/' . $file->path;
         if (Storage::exists($filePath)) {
             Storage::delete($filePath);
         }
         $file->delete();
+        
+        // Логируем удаление файла
+        $this->logAction(
+            'Удаление файла',
+            'DELETE',
+            auth()->id(),
+            $request->ip(),
+            $fileData
+        );
 
         return response()->json([
             'message' => 'успешно удалено'
         ]);
     }
 
-    public function getArchiveContents($id)
+    public function getArchiveContents($id, Request $request)
     {
         $file = File::findOrFail($id);
         
@@ -127,8 +172,19 @@ class FileController extends Controller
             ], 400);
         }
         
+        // Логируем просмотр архива
+        $this->logAction(
+            'Просмотр содержимого архива',
+            'GET',
+            auth()->id(),
+            $request->ip(),
+            [
+                'file_id' => $file->id,
+                'file_name' => $file->original_name
+            ]
+        );
+        
         // Здесь нужно реализовать чтение архива
-        // Для простоты возвращаем структуру
         return response()->json([
             'success' => true,
             'files' => [
@@ -143,8 +199,21 @@ class FileController extends Controller
             'archive_id' => 'required|exists:files,id',
             'file_id' => 'required'
         ]);
-    
-    
+        
+        $archive = File::findOrFail($request->archive_id);
+        
+        // Логируем извлечение файла из архива
+        $this->logAction(
+            'Извлечение файла из архива',
+            'POST',
+            auth()->id(),
+            $request->ip(),
+            [
+                'archive_id' => $request->archive_id,
+                'archive_name' => $archive->original_name,
+                'extracted_file_id' => $request->file_id
+            ]
+        );
     
         return response()->json([
             'success' => true,
@@ -157,7 +226,7 @@ class FileController extends Controller
         ]);
     }
 
-    public function getFileContent($id)
+    public function getFileContent($id, Request $request)
     {
         $file = File::findOrFail($id);
         $extension = strtolower(pathinfo($file->original_name, PATHINFO_EXTENSION));
@@ -205,7 +274,7 @@ class FileController extends Controller
 
     public function saveFileContent(Request $request)
     {
-        \Log::info('Saving file content', [
+        Log::info('Saving file content', [
             'file_id' => $request->file_id,
             'has_content' => !empty($request->content)
         ]);
@@ -218,8 +287,24 @@ class FileController extends Controller
         $file = File::findOrFail($request->file_id);
         $extension = strtolower(pathinfo($file->original_name, PATHINFO_EXTENSION));
         
-        // Создаем директорию для сохранения
+        // Сохраняем старую версию контента для лога (если существует)
         $saveDir = storage_path('app/json');
+        $oldContent = null;
+        $oldFilePath = null;
+        
+        if (in_array($extension, ['ppt', 'pptx'])) {
+            $oldFilePath = $saveDir . '/presentation_' . $file->id . '.json';
+        } elseif (in_array($extension, ['xls', 'xlsx'])) {
+            $oldFilePath = $saveDir . '/excel_' . $file->id . '.json';
+        } else {
+            $oldFilePath = $saveDir . '/document_' . $file->id . '.json';
+        }
+        
+        if ($oldFilePath && file_exists($oldFilePath)) {
+            $oldContent = file_get_contents($oldFilePath);
+        }
+        
+        // Создаем директорию для сохранения
         if (!file_exists($saveDir)) {
             mkdir($saveDir, 0777, true);
         }
@@ -252,7 +337,22 @@ class FileController extends Controller
             file_put_contents($savedFile, $saveData);
         }
         
-        \Log::info('File saved', ['path' => $savedFile]);
+        // Логируем сохранение контента
+        $this->logAction(
+            'Сохранение содержимого файла',
+            'POST',
+            auth()->id(),
+            $request->ip(),
+            [
+                'file_id' => $file->id,
+                'file_name' => $file->original_name,
+                'file_type' => $this->getFileType($extension),
+                'had_previous_content' => !is_null($oldContent),
+                'content_size' => strlen(is_string($content) ? $content : json_encode($content))
+            ]
+        );
+        
+        Log::info('File saved', ['path' => $savedFile]);
         
         return response()->json([
             'success' => true,
@@ -287,7 +387,6 @@ class FileController extends Controller
                 return $this->parseWordDocument($filePath);
                 
             case 'doc':
-                // DOC файлы сложнее, используем простое чтение
                 return '<p>DOC file loaded. Please convert to DOCX for better editing.</p><p>' . htmlspecialchars(basename($filePath)) . '</p>';
                 
             case 'xlsx':
@@ -315,7 +414,6 @@ class FileController extends Controller
                 }
             }
             
-            // Если ничего не извлекли, возвращаем базовый HTML
             if (empty($html)) {
                 return '<p>Document: ' . htmlspecialchars(basename($filePath)) . '</p><p>Start editing your document...</p>';
             }
@@ -416,4 +514,3 @@ class FileController extends Controller
         return '<p>' . htmlspecialchars($fileName) . '</p><p>Start editing your document...</p>';
     }
 }
-

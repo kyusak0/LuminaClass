@@ -11,24 +11,21 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('files', function (Blueprint $table) {
+        Schema::create('logs', function (Blueprint $table) {
             $table->id();
-            $table->string('original_name');
-            $table->string('path');
-            $table->string('mime_type');
-            $table->integer('size');
-            $table->foreignId('author_id')->constrained('users')->cascadeOnDelete()->default(0);
-            $table->string('slug')->nullable();
+            $table->string('action');
+            $table->string('method');
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->string('ip');
             $table->timestamps();
         });
     }
-    
 
     /**
      * Reverse the migrations.
      */
     public function down(): void
     {
-        Schema::dropIfExists('files');
+        Schema::dropIfExists('logs');
     }
 };
