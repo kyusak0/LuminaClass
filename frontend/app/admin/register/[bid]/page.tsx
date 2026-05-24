@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { useAuth } from "@/context/authContext";
+import Alert from "@/components/alert/Alert";
 
 export default function BookingPage() {
     const params = useParams();
@@ -471,7 +472,8 @@ export default function BookingPage() {
     };
 
     return (
-        <AdminLayout alertMess={alertMess?.content}>
+        <AdminLayout>
+            <Alert alertMess={alertMess?.content} />
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     {/* Левая колонка - Информация о заявке */}

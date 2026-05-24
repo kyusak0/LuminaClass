@@ -1,4 +1,3 @@
-// layouts/AdminLayout.tsx
 'use client'
 
 import Link from "next/link";
@@ -21,7 +20,7 @@ import {
     LogOut,
     BotIcon
 } from "lucide-react";
-import Loader from "@/components/loader/Loader";
+import Alert from "@/components/alert/Alert";
 
 // Выносим NavLink в отдельный компонент
 const NavLink = React.memo(({ href, currentPath, isSidebarOpen, children, exact = false }: {
@@ -71,9 +70,10 @@ interface AdminLayoutProps {
     children: React.ReactNode;
     title?: string;
     subtitle?: string;
+    alertMess?: React.ReactNode | null;
 }
 
-export default function AdminLayout({ children, title, subtitle }: AdminLayoutProps) {
+export default function AdminLayout({ children, title, subtitle, alertMess }: AdminLayoutProps) {
     const router = useRouter();
     const pathname = usePathname();
     const auth = useAuth();
@@ -168,11 +168,6 @@ export default function AdminLayout({ children, title, subtitle }: AdminLayoutPr
         },
     ], []);
 
-    // Показываем лоадер пока грузится авторизация
-    if (authLoading) {
-        return <Loader fullScreen text="Проверка прав доступа..." />;
-    }
-
     // Если нет пользователя или не админ - не рендерим (редирект уже сработал)
     if (!user || user.role !== 'admin') {
         return null;
@@ -180,7 +175,6 @@ export default function AdminLayout({ children, title, subtitle }: AdminLayoutPr
 
     return (
         <div className="w-full min-h-screen bg-gray-50">
-            {/* Сайдбар */}
             <aside
                 className={`fixed top-0 left-0 h-screen bg-main text-white 
                 flex flex-col transition-all duration-300 ease-in-out z-20 shadow-xl
@@ -202,7 +196,7 @@ export default function AdminLayout({ children, title, subtitle }: AdminLayoutPr
                     {isSidebarOpen ? (
                         <Link href="/admin" className="flex items-center gap-3 px-4 py-2.5">
                             <Shield className="w-6 h-6" />
-                            <span className="font-bold text-lg">Admin Panel</span>
+                            <span className="font-bold text-lg">Панель Администратора</span>
                         </Link>
                     ) : (
                         <Link href="/admin" className="flex justify-center px-2 py-2.5">
@@ -314,6 +308,7 @@ export default function AdminLayout({ children, title, subtitle }: AdminLayoutPr
                     </div>
                 </div>
             </main>
+            <Alert alert={alertMess} />
         </div>
     );
 }

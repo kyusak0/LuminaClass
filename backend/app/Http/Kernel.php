@@ -43,6 +43,7 @@ class Kernel extends HttpKernel
             \Illuminate\Routing\Middleware\ThrottleRequests::class.':api',
             'throttle:120,1', 
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            'check.blocked' => \App\Http\Middleware\CheckBlocked::class
         ],
     ];
 

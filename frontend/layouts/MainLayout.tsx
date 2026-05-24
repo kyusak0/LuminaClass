@@ -5,12 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/authContext";
 import { Book, BotIcon, ChevronLeft, ChevronRight, Dock, Home, LogOut, Menu, Pencil, Tags, User } from "lucide-react";
+import Alert from "@/components/alert/Alert";
 
-interface NavProps {
+interface MainLayoutProps {
     children: React.ReactNode
+    alertMess?: React.ReactNode | null;
 }
 
-export default function Navigation({ children }: NavProps) {
+export default function MainLayout({ children, alertMess }: MainLayoutProps) {
     const router = useRouter();
     const pathname = usePathname();
     const auth = useAuth();
@@ -62,28 +64,6 @@ export default function Navigation({ children }: NavProps) {
     const goBack = () => {
         router.back();
     };
-
-    // Показываем заглушку во время загрузки пользователя
-    if (loading) {
-        return (
-            <div className='fixed w-full top-0 left-0'>
-                <div className='absolute h-screen bg-main text-white left-0 flex flex-col gap-10 justify-evenly text-nowrap w-64 pl-20'>
-                    <div className="logo">
-                        <div className="h-8 w-32 bg-gray-600 animate-pulse rounded"></div>
-                    </div>
-                    <div className="flex flex-col gap-4">
-                        {[1, 2, 3, 4, 5].map((i) => (
-                            <div key={i} className="h-12 bg-gray-600 animate-pulse rounded-lg mx-5"></div>
-                        ))}
-                    </div>
-                    <div className="flex flex-col gap-4">
-                        <div className="h-12 bg-gray-600 animate-pulse rounded-lg mx-5"></div>
-                        <div className="h-10 bg-gray-600 animate-pulse rounded-lg mx-5 w-24"></div>
-                    </div>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="w-full min-h-screen bg-gray-50">
@@ -178,7 +158,7 @@ export default function Navigation({ children }: NavProps) {
 
                     {/* Оверлей для мобильного меню */}
                     {isMobileMenuOpen && (
-                        <div 
+                        <div
                             className="fixed inset-0 bg-black/50 z-25 lg:hidden"
                             onClick={() => setIsMobileMenuOpen(false)}
                         />
@@ -192,7 +172,7 @@ export default function Navigation({ children }: NavProps) {
                     ${user && isSidebarOpen ? 'lg:ml-64' : user && !isSidebarOpen ? 'lg:ml-20' : ''}`}
             >
                 {/* Шапка */}
-                <header 
+                <header
                     className={`fixed top-0 right-0 bg-white border-b border-gray-200 shadow-sm z-10 transition-all duration-300
                         ${user && isSidebarOpen ? 'left-64' : user && !isSidebarOpen ? 'left-20' : 'left-0'}
                         max-lg:left-0`}
@@ -233,7 +213,7 @@ export default function Navigation({ children }: NavProps) {
                                         />
                                         <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white"></div>
                                     </div>
-                                    
+
                                     {/* Информация о пользователе */}
                                     <div className="hidden md:block text-right">
                                         <p className="text-sm font-medium text-gray-900">
@@ -257,10 +237,18 @@ export default function Navigation({ children }: NavProps) {
                 {/* Отступ для фиксированной шапки */}
                 <div className="pt-16">
                     <div className="p-4 md:p-6 lg:p-8">
-                        {children}
+                        {user?.is_blocked ? (<div className="text-center">
+                            <h2 className="my-20 text-3xl tracking-tight font-extrabold text-gray-900 sm:text-4xl md:text-5xl">
+                                Ваш аккаунт был заблокирован
+                            </h2>
+                            <p>
+                                дата блокировки: {new Date(user.blocked_at).toLocaleString('Ru-ru')}
+                            </p></div>
+                        ) : children}
                     </div>
                 </div>
             </main>
+        <Alert alertMess={alertMess}/>
         </div>
     );
 }
