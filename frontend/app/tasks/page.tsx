@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import RequiredSymbol from "@/components/requiredSymbol/RequiredSymbol";
 import JSZip from 'jszip';
+import axios from '@/lib/axios.config';
 
 export default function TaskPage() {
     const router = useRouter();
@@ -39,6 +40,7 @@ export default function TaskPage() {
         loadUser();
         getTasks();
         getGroups();
+        getFiles();
     }, [user, authLoading]);
 
     const loadUser = async () => {
@@ -57,7 +59,10 @@ export default function TaskPage() {
             setFiles([]);
             let records: Array<any> = [];
 
-            res.forEach((item: any) => {
+            // Проверяем структуру ответа
+            const filesData = res.data || res;
+            
+            (Array.isArray(filesData) ? filesData : []).forEach((item: any) => {
                 if (item.author_id == user?.id) {
                     records.push({ id: item.id, name: item.original_name });
                 }
@@ -104,6 +109,22 @@ export default function TaskPage() {
         return zipFile;
     };
 
+    const uploadFile = async (file: File, customFileName?: string): Promise<number> => {
+        const formData = new FormData();
+        const fileName = customFileName || file.name;
+        formData.append('file', file, fileName);
+        formData.append('author_id', user?.id.toString() || '1');
+
+        // Используем axios напрямую для загрузки файла
+        const response = await axios.post('/save-file', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        
+        return response.data.file_id;
+    };
+
     const createTask = async (e: FormEvent) => {
         e.preventDefault();
         if (!post || !user) return;
@@ -120,50 +141,32 @@ export default function TaskPage() {
         setCreating(true);
 
         try {
-            let fileId;
+            let fileId = null;
 
             if (existFile) {
                 fileId = form.file.value;
-                if (!fileId) {
+                if (!fileId || fileId === '') {
                     setFormErrors({ ...formErrors, file: 'Выберите файл' });
                     setCreating(false);
                     return;
                 }
-            } else {
-                let fileToUpload: File;
-
+            } else if (selectedFiles.length > 0) {
                 if (selectedFiles.length === 1) {
-                    fileToUpload = selectedFiles[0];
                     const fileName = prompt(`Название для файла \n по умолчанию: ${selectedFiles[0].name}`) || selectedFiles[0].name;
-
-                    const formData = new FormData();
-                    formData.append('file', fileToUpload, fileName);
-                    formData.append('author_id', user?.id.toString() || '1');
-
-                    const saveFile: any = await post('/save-file', formData);
-                    fileId = saveFile.file_id;
+                    fileId = await uploadFile(selectedFiles[0], fileName);
                 } else if (selectedFiles.length > 1) {
                     const zipFile = await createZipArchive(selectedFiles);
                     const fileName = prompt('Название для архива', zipFile.name) || zipFile.name;
-
-                    const formData = new FormData();
-                    formData.append('file', zipFile, fileName);
-                    formData.append('author_id', user?.id.toString() || '1');
-
-                    const saveFile: any = await post('/save-file', formData);
-                    fileId = saveFile.file_id;
-                } else {
-                    throw new Error('Не выбраны файлы для загрузки');
+                    fileId = await uploadFile(zipFile, fileName);
                 }
             }
 
             const newData = {
-                id: null,
                 group_id: parseInt(form.group.value),
-                task_id: fileId || null,
+                task_id: fileId,
                 title: form.title.value.trim(),
                 description: form.desc.value?.trim() || 'без описания',
-                deadline: form.deadline.value || '9999-12-31',
+                deadline: form.deadline.value || null,
                 user_id: user?.id || 0,
             };
 
@@ -193,10 +196,11 @@ export default function TaskPage() {
 
             await getTasks();
         } catch (error: any) {
+            console.error('Ошибка при создании задания:', error);
             const alertContent = (
                 <div>
                     <div>❌ Ошибка при создании задания:</div>
-                    <div className="font-semibold my-1">{error.message || 'Неизвестная ошибка'}</div>
+                    <div className="font-semibold my-1">{error.response?.data?.message || error.message || 'Неизвестная ошибка'}</div>
                     <div className="text-xs text-gray-500">
                         в {new Date().toLocaleTimeString()}, {new Date().toLocaleDateString()}
                     </div>
@@ -205,7 +209,6 @@ export default function TaskPage() {
             setAlertMess({ content: alertContent });
         } finally {
             setCreating(false);
-            setArchiving(false);
         }
     };
 
@@ -231,24 +234,24 @@ export default function TaskPage() {
         if (!get) return;
         try {
             const res = await get('/get-tasks');
+            let tasksData = res.data.data || [];
 
             let filteredData: any = [];
+            
             if (user?.role === 'student' && user?.id) {
-                res.data.map((item: any) => {
-                    const studentGroupIds = item.group.students?.map((item: any) => item.student_id) || [];
-                    if (studentGroupIds == user?.id) {
+                tasksData.forEach((item: any) => {
+                    const studentGroupIds = item.group.students?.map((student: any) => student.student_id) || [];
+                    if (studentGroupIds.includes(user?.id)) {
                         filteredData.push(item);
-                        console.log(item)
                     }
-
-                    console.log(filteredData)
-                })
-
+                });
+            } else {
+                filteredData = tasksData;
             }
 
             const newRecords = filteredData.map((item: any) => ({
                 id: item.id?.toString(),
-                task_id: item.group.id,
+                task_id: item.group?.id,
                 title: item.title,
                 columns: [
                     {
@@ -264,7 +267,7 @@ export default function TaskPage() {
                         title: 'Учитель',
                         key: 'teacher',
                         data: {
-                            value: item.user.name,
+                            value: item.user?.name || '—',
                             size: 2,
                             isFilter: true
                         }
@@ -273,7 +276,7 @@ export default function TaskPage() {
                         title: 'Группа',
                         key: 'group',
                         data: {
-                            value: item.group.name,
+                            value: item.group?.name || '—',
                             size: 2,
                             isFilter: true
                         }
@@ -282,7 +285,7 @@ export default function TaskPage() {
                         title: 'Предмет',
                         key: 'subject',
                         data: {
-                            value: item.group.subject || '—',
+                            value: item.group?.subject || '—',
                             size: 2,
                             isFilter: true
                         }
@@ -300,7 +303,7 @@ export default function TaskPage() {
                         title: 'Ответы',
                         key: 'answers_count',
                         data: {
-                            value: item.answers.length,
+                            value: item.answers?.length || 0,
                             size: 1,
                             isFilter: true
                         }
@@ -309,8 +312,6 @@ export default function TaskPage() {
             }));
 
             setSearchProps(newRecords);
-
-            console.log(newRecords)
         } catch (error) {
             console.error('Ошибка загрузки заданий:', error);
         }
@@ -320,12 +321,21 @@ export default function TaskPage() {
         try {
             if (!get) return;
             const res = await get('/get-groups');
-
-            const groupRecords = res.data.map((item: any) => ({
+            
+            const groupRecords = res.data?.data?.filter((item: any) => {
+                if (user?.role === 'admin') return true;
+                if (user?.role === 'teacher') return item.teacher?.tutor_id === user.id;
+                if (user?.role === 'student') {
+                    // Для студентов показываем только их группы
+                    return item.students?.some((student: any) => student.student_id === user.id);
+                }
+                return false;
+            }).map((item: any) => ({
                 id: item.id,
                 name: item.name,
-                subject: item.subject || '—'
-            }));
+                subject: item.subject || '—',
+                tutor_id: item.teacher?.tutor_id
+            })) || [];
 
             setGroups(groupRecords);
         } catch (error) {
@@ -340,7 +350,7 @@ export default function TaskPage() {
         searchProps.forEach(record => {
             const teacherColumn = record.columns.find(col => col.key === 'teacher');
             const teacherName = teacherColumn?.data.value;
-            if (teacherName && teacherName !== '') {
+            if (teacherName && teacherName !== '' && teacherName !== '—') {
                 uniqueTeachers.set(teacherName, teacherName);
             }
         });
@@ -468,7 +478,7 @@ export default function TaskPage() {
                                 {/* Группа */}
                                 <div>
                                     <label htmlFor="group" className="block text-sm font-medium text-gray-700 mb-2">
-                                        Группа <RequiredSymbol></RequiredSymbol>
+                                        Группа <RequiredSymbol />
                                     </label>
                                     <select
                                         name="group"
@@ -519,7 +529,7 @@ export default function TaskPage() {
                                 {/* Файл */}
                                 <div className="col-span-1 md:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Файл <RequiredSymbol></RequiredSymbol>
+                                        Файл <RequiredSymbol />
                                     </label>
 
                                     <div className="space-y-3">
@@ -531,7 +541,7 @@ export default function TaskPage() {
                                                 checked={existFile}
                                                 onChange={(e) => {
                                                     setExistFile(e.target.checked);
-                                                    if (e.target.checked) {
+                                                    if (e.target.checked && files.length === 0) {
                                                         getFiles();
                                                     }
                                                     if (formErrors.file) {
@@ -564,7 +574,6 @@ export default function TaskPage() {
                                                     type="file"
                                                     name="file"
                                                     multiple
-                                                    required={!existFile}
                                                     className={`w-full px-4 py-2 border ${formErrors.file ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition`}
                                                     onChange={handleFileChange}
                                                 />

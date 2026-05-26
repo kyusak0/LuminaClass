@@ -59,7 +59,7 @@ export default function LogsPage() {
             }
 
             // Предполагаем, что данные могут быть в res.data или просто res
-            const logsData = res.data || res;
+            const logsData = res.data.data || res.data;
 
             // Формируем данные для таблицы
             const tableData: SearchRecord[] = logsData.map((item: LogItem) => ({

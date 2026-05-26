@@ -14,7 +14,8 @@ class File extends Model
         'path',
         'mime_type',
         'size',
-        'author_id'
+        'author_id',
+        'slug',
     ];
 
     public function user(){

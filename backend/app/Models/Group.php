@@ -9,7 +9,11 @@ class Group extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'subject', 'desc'];
+    protected $fillable = [
+        'name', 
+        'subject', 
+        'desc',
+        'slug',];
 
     public function students(){
         return $this->hasMany(Student::class);
@@ -23,6 +27,11 @@ class Group extends Model
     public function tasks()
     {
         return $this->hasMany(Task::class, 'group_id');
+    }
+
+    public function messages()
+    {
+        return $this->hasMany(GroupMessage::class);
     }
 
     // public function organization(){

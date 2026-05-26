@@ -4,8 +4,9 @@ import SearchTable, { SearchRecord } from "@/components/searchTable/SearchTable"
 import AdminLayout from "@/layouts/AdminLayout";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState, useMemo } from "react";
 import { useAuth } from "@/context/authContext";
+import { Filter, BookOpen, Users, Calendar, Info } from 'lucide-react';
 
 export default function GroupsPage() {
     const router = useRouter();
@@ -28,6 +29,10 @@ export default function GroupsPage() {
     const [alertMess, setAlertMess] = useState<{ content: any }>();
     const [searchProps, setSearchProps] = useState<SearchRecord[]>([]);
     const [allTeachers, setAllTeachers] = useState<{ id: number, name: string }[]>([]);
+    const [filterSubject, setFilterSubject] = useState<string>('');
+
+    // Опции для фильтрации по предмету
+    const filterOptions:any = [];
 
     useEffect(() => {
         getTeachers();
@@ -116,9 +121,18 @@ export default function GroupsPage() {
         if (!get) return;
         try {
             const res = await get('/get-groups');
-            let data: any = res.data || res;
 
-            const newRecords = data.map((item: any) => ({
+            console.log(res)
+
+            const groupsData = res.data.data;
+
+            const uniqueSubjects = groupsData.map((item: any) => item.subject.toString());
+
+            uniqueSubjects.forEach((subject: string) => {
+                filterOptions.push({ value: subject, label: subject });
+            });
+
+            const newRecords = groupsData.map((item: any) => ({
                 id: item.id?.toString(),
                 title: `Группа ${item.name}`,
                 task_id: item.id,
@@ -164,18 +178,21 @@ export default function GroupsPage() {
                 ]
             }));
 
+            console.log(newRecords)
             setSearchProps(newRecords);
             setLoading(false)
         } catch (error: any) {
             setAlertMessage(error.message);
+            setLoading(false);
         }
     };
 
     const getTeachers = async () => {
         if (!get) return;
         try {
+
             const res = await get('/get-users');
-            const teacherList = res.data
+            const teacherList = res.data.data
                 .filter((item: any) => item.role === 'teacher')
                 .map((item: any) => ({ id: item.id, name: item.name }));
 
@@ -183,6 +200,11 @@ export default function GroupsPage() {
         } catch (error) {
             console.error('Error loading teachers:', error);
         }
+    };
+
+    // Обработчик изменения фильтра
+    const handleFilterChange = (value: string) => {
+        setFilterSubject(value);
     };
 
     // Обработчик клика по строке таблицы
@@ -202,116 +224,133 @@ export default function GroupsPage() {
         );
     }
 
-    if (user    && user?.role != 'admin' && !loading) {
+    if (user && user?.role != 'admin' && !loading) {
         return notFound();
     }
 
     return (
         <AdminLayout alertMess={alertMess?.content}>
-            <h2 className="text-4xl font-bold mb-8">
-                <Link href='/admin' className="hover:text-main transition-colors">
-                    Панель Администратора
-                </Link>
-                <span className="mx-2">/</span>
-                <span>Управление группами</span>
-            </h2>
+            <div className="min-h-screen bg-gray-50">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                    {/* Header */}
+                    <div className="mb-6">
+                        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">
+                            <Link href='/admin' className="hover:text-main transition-colors">
+                                Панель Администратора
+                            </Link>
+                            <span className="mx-2">/</span>
+                            <span>Управление группами</span>
+                        </h2>
+                        <p className="text-gray-500 text-sm sm:text-base mt-1">
+                            Создание и управление учебными группами
+                        </p>
+                    </div>
 
-            {/* Форма создания группы */}
-            <form onSubmit={createGroup} className="bg-white rounded-lg shadow-md p-6 mb-8">
-                <h3 className="text-xl font-semibold mb-4">Создать новую группу</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Название группы <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            name="name"
-                            value={formData.name}
-                            onChange={handleChange}
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-main focus:border-transparent"
-                            disabled={creating}
-                            placeholder="Введите название группы"
+                    {/* Форма создания группы */}
+                    <form onSubmit={createGroup} className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 mb-8">
+                        <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                            <div className="p-1.5 bg-main/10 rounded-lg">
+                                <Info className="w-5 h-5 text-main" />
+                            </div>
+                            Создать новую группу
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Название группы <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={handleChange}
+                                    required
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-main focus:border-transparent transition"
+                                    disabled={creating}
+                                    placeholder="Введите название группы"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Предмет <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    name="subject"
+                                    value={formData.subject}
+                                    onChange={handleChange}
+                                    required
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-main focus:border-transparent transition"
+                                    disabled={creating}
+                                    placeholder="Введите предмет"
+                                />
+                            </div>
+
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Описание группы
+                                </label>
+                                <textarea
+                                    name="desc"
+                                    value={formData.desc}
+                                    onChange={handleChange}
+                                    rows={3}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-main focus:border-transparent transition"
+                                    disabled={creating}
+                                    placeholder="Введите описание группы (необязательно)"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Куратор группы <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    name="tutor_id"
+                                    value={formData.tutor_id}
+                                    onChange={handleChange}
+                                    required
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-main focus:border-transparent transition bg-white"
+                                    disabled={creating}
+                                >
+                                    <option value={0}>Выберите куратора</option>
+                                    {allTeachers.map((teacher) => (
+                                        <option value={teacher.id} key={teacher.id}>
+                                            {teacher.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="mt-4">
+                            <button
+                                type="submit"
+                                disabled={creating || !formData.name.trim() || !formData.subject.trim() || !formData.tutor_id}
+                                className="px-6 py-2 bg-main text-white font-medium rounded-lg hover:bg-main-dark disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                            >
+                                {creating ? 'Создание...' : 'Создать группу'}
+                            </button>
+                        </div>
+                    </form>
+
+                    {/* Таблица с фильтрацией */}
+                    {loading ? (
+                        <div className="text-center py-8 text-gray-500 border-2 border-main rounded-lg bg-white">
+                            Загрузка данных...
+                        </div>
+                    ) : (
+                        <SearchTable
+                            searchProps={searchProps}
+                            onRowClick={handleRowClick}
+                            filterOptions={filterOptions}
+                            filterField="subject"
+                            onFilterChange={handleFilterChange}
                         />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Предмет <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            name="subject"
-                            value={formData.subject}
-                            onChange={handleChange}
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-main focus:border-transparent"
-                            disabled={creating}
-                            placeholder="Введите предмет"
-                        />
-                    </div>
-
-                    <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Описание группы
-                        </label>
-                        <textarea
-                            name="desc"
-                            value={formData.desc}
-                            onChange={handleChange}
-                            rows={3}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-main focus:border-transparent"
-                            disabled={creating}
-                            placeholder="Введите описание группы (необязательно)"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Куратор группы <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                            name="tutor_id"
-                            value={formData.tutor_id}
-                            onChange={handleChange}
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-main focus:border-transparent"
-                            disabled={creating}
-                        >
-                            <option value={0}>Выберите куратора</option>
-                            {allTeachers.map((teacher) => (
-                                <option value={teacher.id} key={teacher.id}>
-                                    {teacher.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    )}
                 </div>
-
-                <div className="mt-4">
-                    <button
-                        type="submit"
-                        disabled={creating || !formData.name.trim() || !formData.subject.trim() || !formData.tutor_id}
-                        className="px-6 py-2 bg-main text-white font-medium rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                    >
-                        {creating ? 'Создание...' : 'Создать группу'}
-                    </button>
-                </div>
-            </form>
-
-            {/* Список групп */}
-            {loading ? (
-                <div className="text-center py-8 text-gray-500 border-2 border-main rounded-lg">
-                    Загрузка данных...
-                </div>
-            ) : (
-                <SearchTable
-                    searchProps={searchProps}
-                    paginateLink="/get-groups"
-                    onRowClick={handleRowClick}
-                />
-            )}
+            </div>
         </AdminLayout>
     );
 }

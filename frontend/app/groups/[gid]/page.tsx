@@ -18,8 +18,6 @@ export default function GroupPage() {
         subject: string,
         teacher: string, 
         teacherId: number, 
-        orgId: number, 
-        orgName: string 
     }>();
     const [searchProps, setSearchProps] = useState<SearchRecord[]>([]);
     const [availableStudents, setAvailableStudents] = useState<{ id: number, name: string }[]>([]);
@@ -57,8 +55,8 @@ export default function GroupPage() {
         if (!get) return;
         try {
             const res = await get(`/get-group-info/${id}`);
-            const data = res.data || res;
-            console.log(data);
+            console.log(res.data);
+            const data = res.data.data
 
             // Получаем ID студентов, которые уже в группе
             const existingStudentIds = data.students?.map((item: any) => item?.user?.id) || [];
@@ -70,8 +68,6 @@ export default function GroupPage() {
                 subject: data?.subject,
                 teacherId: data?.teacher?.tutor_id, 
                 teacher: data?.teacher?.user?.name, 
-                orgId: data?.organization?.id, 
-                orgName: data?.organization?.name 
             });
 
             const newRecords = data.students?.map((item: any) => ({
@@ -121,7 +117,7 @@ export default function GroupPage() {
         if (!get) return;
         try {
             const res = await get('/get-users');
-            const data: any = res.data || res;
+            const data: any = res.data.data;
 
             const newItems = data
                 .filter((item: any) => 

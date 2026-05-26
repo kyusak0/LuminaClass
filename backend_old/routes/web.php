@@ -1,0 +1,24 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register web routes for your application. These
+| routes are loaded by the RouteServiceProvider and all of them will
+| be assigned to the "web" middleware group. Make something great!
+|
+*/
+
+Route::get('/', function () {
+    return view('welcome');
+});
+
+Route::get('/sanctum/csrf-cookie', function() {
+    return response()->json(['csrf_token' => csrf_token()]);
+});
+
+Route::post('/create-user', [App\Http\Controllers\UserController::class, 'createUser'])->name('user.create');

@@ -43,6 +43,7 @@ export default function MarksPage() {
     const [searchProps, setSearchProps] = useState<SearchRecord[]>([]);
     const [compactModeEnabled, setCompactModeEnabled] = useState(false);
     const [performanceData, setPerformanceData] = useState<any>(null);
+    const [teacherGroups, setTeacherGroups] = useState<any[]>([]); // Добавляем состояние для групп учителя
 
     // Состояния для таблицы студента
     const [studentSubjects, setStudentSubjects] = useState<string[]>([]);
@@ -82,10 +83,21 @@ export default function MarksPage() {
             const res = await get('/get-performance');
             console.log('Ответ сервера:', res);
 
+            // Фильтруем группы для учителя
+            let filteredGroups = res.data.groups || [];
+            if (user?.role === 'teacher') {
+                filteredGroups = filteredGroups.filter((group: any) => 
+                    group.teacher?.tutor_id === user.id
+                );
+                setTeacherGroups(filteredGroups);
+            } else {
+                setTeacherGroups(filteredGroups);
+            }
+
             const groupedUserIds = new Set<number>();
             const allGroupedStudents: any[] = [];
 
-            res.groups?.forEach((group: any) => {
+            filteredGroups.forEach((group: any) => {
                 group.students?.forEach((studentGroup: any) => {
                     if (studentGroup.user && studentGroup.user.id) {
                         groupedUserIds.add(studentGroup.user.id);
@@ -103,7 +115,13 @@ export default function MarksPage() {
             const usersWithAnswersButNoGroup: any[] = [];
             const processedUserIds = new Set<number>();
 
-            res.info?.forEach((task: any) => {
+            res.data.info?.forEach((task: any) => {
+                // Для учителя фильтруем задачи по его группам
+                const taskGroup = filteredGroups.find((g: any) => g.id === task.group_id);
+                if (user?.role === 'teacher' && !taskGroup) {
+                    return; // Пропускаем задачи не из групп учителя
+                }
+
                 task.answers?.forEach((answer: any) => {
                     const userId = answer.user_id;
                     if (userId && !groupedUserIds.has(userId) && !processedUserIds.has(userId)) {
@@ -123,9 +141,17 @@ export default function MarksPage() {
                 });
             });
 
+            // Фильтруем задачи для учителя
+            let filteredTasks = res.data.info || [];
+            if (user?.role === 'teacher') {
+                filteredTasks = filteredTasks.filter((task: any) => 
+                    filteredGroups.some((group: any) => group.id === task.group_id)
+                );
+            }
+
             const formattedData = {
-                groups: res.groups || [],
-                tasks: res.info || [],
+                groups: filteredGroups,
+                tasks: filteredTasks,
                 answers: res.info?.flatMap((task: any) => task.answers || []),
                 allStudents: [...allGroupedStudents, ...usersWithAnswersButNoGroup]
             };
@@ -155,7 +181,7 @@ export default function MarksPage() {
             console.log('Данные студента:', res);
 
             if (res?.data && Array.isArray(res.data)) {
-                buildStudentTableView(res.data);
+                buildStudentTableView(res.data.data);
             } else if (res?.message === 'Студент не состоит в группе') {
                 // Если студент не в группе, показываем пустое состояние
                 setStudentSubjects([]);
@@ -163,9 +189,6 @@ export default function MarksPage() {
                 setStudentMarksMatrix(new Map());
                 setAverageScores(new Map());
                 setSearchProps([]);
-
-                // Можно показать сообщение пользователю
-                // Например, через toast или состояние
             }
         } catch (error) {
             console.error('Ошибка загрузки данных студента:', error);
@@ -330,7 +353,7 @@ export default function MarksPage() {
 
                 records.push({
                     id: answerId,
-                    _uniqueKey: `${task.id}_${student.id}_${answerId || 'no-answer'}`, // Уникальный ключ
+                    _uniqueKey: `${task.id}_${student.id}_${answerId || 'no-answer'}`,
                     task_id: task.id,
                     title: task.title,
                     columns: [
@@ -398,7 +421,7 @@ export default function MarksPage() {
 
                     records.push({
                         id: answer.id,
-                        _uniqueKey: `${task.id}_${student.id}_${answer.id || 'no-answer'}_nogroup`, // Уникальный ключ
+                        _uniqueKey: `${task.id}_${student.id}_${answer.id || 'no-answer'}_nogroup`,
                         task_id: task.id,
                         title: task.title,
                         columns: [
@@ -467,10 +490,8 @@ export default function MarksPage() {
 
     const handleMarkClick = useCallback((taskId: number, answerId: number | null, mark: number | null) => {
         if (answerId && mark !== null) {
-            // Если есть ответ и оценка, переходим к ответу
             router.push(`/answers/${answerId}`);
         } else {
-            // Если ответа нет, переходим к странице задания
             router.push(`/tasks/${taskId}`);
         }
     }, [router]);
@@ -480,9 +501,9 @@ export default function MarksPage() {
             { value: '', label: 'Все группы' }
         ];
 
-        if (!performanceData?.groups) return options;
+        if (!teacherGroups || teacherGroups.length === 0) return options;
 
-        performanceData.groups.forEach((group: any) => {
+        teacherGroups.forEach((group: any) => {
             if (group.id && group.name) {
                 options.push({ value: group.id.toString(), label: group.name });
             }
@@ -500,7 +521,7 @@ export default function MarksPage() {
         }
 
         return options;
-    }, [performanceData, accessLevel, searchProps]);
+    }, [teacherGroups, accessLevel, searchProps]);
 
     const handleTaskChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
         setTaskNum(e.target.value);
@@ -626,6 +647,11 @@ export default function MarksPage() {
                     {accessLevel === 2 && <span className="text-blue-600 font-semibold">Учитель</span>}
                     {accessLevel === 1 && <span className="text-purple-600 font-semibold">Ученик</span>}
                 </div>
+                {user?.role === 'teacher' && teacherGroups.length > 0 && (
+                    <div className="mt-2 text-sm text-gray-500">
+                        📚 Ваши группы: {teacherGroups.map((g: any) => g.name).join(', ')}
+                    </div>
+                )}
             </div>
 
             {/* Для студента показываем матрицу оценок */}
@@ -795,7 +821,7 @@ export default function MarksPage() {
                                 </select>
                             </div>
 
-                            {(user?.role == 'admin' || user?.role == 'teacher') && (
+                            {(user?.role == 'admin' || user?.role == 'teacher') && teacherGroups.length > 0 && (
                                 <div className="flex items-center gap-2">
                                     <span className="text-sm font-medium text-gray-700">👥 Группа:</span>
                                     <select

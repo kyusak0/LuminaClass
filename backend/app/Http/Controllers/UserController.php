@@ -19,7 +19,7 @@ use Illuminate\Validation\ValidationException;
 class UserController extends Controller
 {
 
-private function logAction($action, $method, $userId, $ip, $details = null)
+    private function logAction($action, $method, $userId, $ip, $details = null)
     {
         return Log::create([
             'action' => $action,
@@ -159,15 +159,17 @@ private function logAction($action, $method, $userId, $ip, $details = null)
             ], 500);
         }
     }
+    
     public function checkUser(Request $request){
         if(Auth::user()) {
             $user = Auth::user();
             
-            Log::create([
-                'action' => 'checking user',
-                'user_id' => $user->id,
-                'ip' => $request->ip()
-            ]);
+            $this->logAction(
+                'Проверка пользователя',
+                'GET',
+                $user->id,
+                $request->ip()
+            );
             
             return response()->json([
                 'user' => $user
@@ -198,11 +200,17 @@ private function logAction($action, $method, $userId, $ip, $details = null)
         
         $user = User::create($credentials);
 
-        Log::create([
-            'action' => 'creating User',
-            'user_id' => Auth::user()->id,
-            'ip' => $request->ip()
-        ]);
+        $this->logAction(
+            'Создание пользователя',
+            'POST',
+            Auth::user()->id,
+            $request->ip(),
+            [
+                'created_user_id' => $user->id,
+                'created_user_name' => $user->name,
+                'created_user_role' => $user->role
+            ]
+        );
 
         if($request->is('api/*')){
             return response()->json([
@@ -236,6 +244,20 @@ private function logAction($action, $method, $userId, $ip, $details = null)
 
         $booking = Booking::create($data);
 
+        // Для бронирования логируем, если пользователь авторизован
+        if (Auth::check()) {
+            $this->logAction(
+                'Создание бронирования',
+                'POST',
+                Auth::user()->id,
+                $request->ip(),
+                [
+                    'booking_id' => $booking->id,
+                    'booking_data' => $data
+                ]
+            );
+        }
+
         return response()->json([
             'message' => $booking->id
         ], 201);
@@ -251,13 +273,24 @@ private function logAction($action, $method, $userId, $ip, $details = null)
         ]);
 
         $user = User::findOrFail($id);
+        $oldData = [
+            'old_login' => $user->login,
+            'old_password_changed' => !empty($data['password'])
+        ];
+        
         $user->update($data);
         
-        Log::create([
-            'action' => 'editing User data',
-            'user_id' => Auth::user()->id,
-            'ip' => $request->ip()
-        ]);
+        $this->logAction(
+            'Редактирование данных пользователя',
+            'PUT',
+            Auth::user()->id,
+            $request->ip(),
+            [
+                'edited_user_id' => $user->id,
+                'changes' => $oldData,
+                'new_login' => $data['login']
+            ]
+        );
 
         return response()->json(['message' => 'user updated successfully', 'user' => $user]);
     }
@@ -277,6 +310,16 @@ private function logAction($action, $method, $userId, $ip, $details = null)
             
             $token = $user->createToken('auth-token')->plainTextToken;
             
+            $this->logAction(
+                'Авторизация',
+                'POST',
+                $user->id,
+                $request->ip(),
+                [
+                    'login' => $request->login,
+                    'success' => true
+                ]
+            );
             
             return response()->json([
                 'user' => $user,
@@ -284,6 +327,19 @@ private function logAction($action, $method, $userId, $ip, $details = null)
                 'message' => 'Успешная авторизация'
             ]);
         }
+
+        // Логируем неудачную попытку входа
+        $this->logAction(
+            'Авторизация',
+            'POST',
+            null,
+            $request->ip(),
+            [
+                'login' => $request->login,
+                'success' => false,
+                'error' => 'Неверные учетные данные'
+            ]
+        );
 
         throw ValidationException::withMessages([
             'login' => ['Неверные учетные данные'],
@@ -300,13 +356,30 @@ private function logAction($action, $method, $userId, $ip, $details = null)
         User::findOrFail($id)->update([
             'avatar' => $request->avatar,
         ]);
+        
+        if (Auth::check()) {
+            $this->logAction(
+                'Изменение аватара',
+                'POST',
+                Auth::user()->id,
+                $request->ip(),
+                [
+                    'user_id' => $id,
+                    'avatar_url' => $request->avatar
+                ]
+            );
+        }
 
         return response()->json($request->url);
     }
 
     public function logout(Request $request)
     {   
-        $request->user()->currentAccessToken()->delete();
+        $user = $request->user();
+        
+        if ($user) {
+            $user->currentAccessToken()->delete();
+        }
         
         return response()->json(['message' => 'Успешный выход']);
     }
@@ -338,11 +411,16 @@ private function logAction($action, $method, $userId, $ip, $details = null)
             $student->group_id = $request->id_knave;
             $student->save();
             
-            Log::create([
-                'action' => 'adding student role',
-                'user_id' => Auth::user()->id,
-                'ip' => $request->ip()
-            ]);
+            $this->logAction(
+                'Добавление роли студента',
+                'POST',
+                Auth::user()->id,
+                $request->ip(),
+                [
+                    'student_id' => $request->id_owner,
+                    'group_id' => $request->id_knave
+                ]
+            );
         }
         
         if($request->role == 'teacher'){
@@ -363,11 +441,16 @@ private function logAction($action, $method, $userId, $ip, $details = null)
             $tutor->supervised_group_id = $request->id_knave;
             $tutor->save();
             
-            Log::create([
-                'action' => 'adding teacher role',
-                'user_id' => Auth::user()->id,
-                'ip' => $request->ip()
-            ]);
+            $this->logAction(
+                'Добавление роли учителя',
+                'POST',
+                Auth::user()->id,
+                $request->ip(),
+                [
+                    'teacher_id' => $request->id_owner,
+                    'group_id' => $request->id_knave
+                ]
+            );
         }
         
         if($request->role == 'parent'){
@@ -388,11 +471,16 @@ private function logAction($action, $method, $userId, $ip, $details = null)
             $guardian->child_id = $request->id_knave;
             $guardian->save();
             
-            Log::create([
-                'action' => 'adding parent role',
-                'user_id' => Auth::user()->id,
-                'ip' => $request->ip()
-            ]);
+            $this->logAction(
+                'Добавление роли родителя',
+                'POST',
+                Auth::user()->id,
+                $request->ip(),
+                [
+                    'parent_id' => $request->id_owner,
+                    'child_id' => $request->id_knave
+                ]
+            );
         }
 
         return response()->json([
@@ -424,11 +512,17 @@ private function logAction($action, $method, $userId, $ip, $details = null)
 
         $student->delete();
         
-        Log::create([
-            'action' => 'removing student from group',
-            'user_id' => Auth::user()->id,
-            'ip' => $request->ip()
-        ]);
+        $this->logAction(
+            'Удаление студента из группы',
+            'DELETE',
+            Auth::user()->id,
+            $request->ip(),
+            [
+                'student_id' => $request->student_id,
+                'group_id' => $request->group_id,
+                'deleted_relation_id' => $student->id
+            ]
+        );
 
         return response()->json([
             'data' => $student,
@@ -437,6 +531,17 @@ private function logAction($action, $method, $userId, $ip, $details = null)
     
     public function getUserInfo($id, Request $request){
         $user = User::with(['files', 'groups', 'tasks', 'answers', 'tutors', 'guardianships'])->findOrFail($id);
+        
+        $this->logAction(
+            'Получение информации о пользователе',
+            'GET',
+            Auth::check() ? Auth::user()->id : null,
+            $request->ip(),
+            [
+                'requested_user_id' => $id,
+                'requested_user_name' => $user->name
+            ]
+        );
         
         return response()->json([
             'message' => 'Пользователь получен',

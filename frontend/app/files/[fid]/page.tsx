@@ -1,11 +1,30 @@
 'use client'
 
-import MainLayout from "@/layouts/MainLayout";
+import AdminLayout from "@/layouts/AdminLayout";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/authContext";
 import { NEXT_PUBLIC_API_URL } from "@/lib/axios.config";
+
+// Импорты иконок из lucide-react
+import {
+    ArrowLeft,
+    Download,
+    FileArchive,
+    FileImage,
+    FileText,
+    FileIcon,
+    File,
+    Trash2,
+    User,
+    Calendar,
+    HardDrive,
+    FileType,
+    FileCheck,
+    Loader2,
+    Eye
+} from 'lucide-react';
 
 interface FileData {
     id: number;
@@ -61,7 +80,7 @@ export default function FilePage() {
             const response = await get(`/get-file/${params.fid}`);
             
             if (response.data) {
-                setFile(response.data);
+                setFile(response.data.data);
             } else {
                 setError('Файл не найден');
             }
@@ -71,16 +90,18 @@ export default function FilePage() {
         }
     };
 
-    const getFileIcon = (mimeType: string) => {
-        if (mimeType.includes('pdf')) return '📄';
-        if (mimeType.includes('image')) return '🖼️';
-        if (mimeType.includes('word') || mimeType.includes('document')) return '📝';
-        if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return '📊';
-        if (mimeType.includes('zip') || mimeType.includes('compressed')) return '📦';
-        if (mimeType.includes('text') || mimeType.includes('plain')) return '📃';
-        if (mimeType.includes('video')) return '🎬';
-        if (mimeType.includes('audio')) return '🎵';
-        return '📎';
+    const getFileIcon = (mimeType: string, size: 'large' | 'small' = 'large') => {
+        const iconSize = size === 'large' ? 'w-20 h-20' : 'w-5 h-5';
+        
+        if (mimeType.includes('pdf')) return <File className={`${iconSize} text-red-500`} />;
+        if (mimeType.includes('image')) return <FileImage className={`${iconSize} text-purple-500`} />;
+        if (mimeType.includes('word') || mimeType.includes('document')) return <FileText className={`${iconSize} text-blue-500`} />;
+        if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return <FileText className={`${iconSize} text-green-500`} />;
+        if (mimeType.includes('zip') || mimeType.includes('compressed')) return <FileArchive className={`${iconSize} text-yellow-500`} />;
+        if (mimeType.includes('text') || mimeType.includes('plain')) return <FileText className={`${iconSize} text-gray-500`} />;
+        if (mimeType.includes('video')) return <File className={`${iconSize} text-blue-400`} />;
+        if (mimeType.includes('audio')) return <File className={`${iconSize} text-green-400`} />;
+        return <FileIcon className={`${iconSize} text-gray-400`} />;
     };
 
     const getFileUrl = (filePath: string) => {
@@ -98,10 +119,8 @@ export default function FilePage() {
     const downloadFile = async () => {
         if (!file || !post || downloading) return;
 
-        // Запрашиваем имя файла
         const customName = prompt(`Под каким именем сохранить? \n по умолчанию: ${file.original_name}`, file.original_name);
         
-        // Если пользователь нажал "Отмена" или ввел пустое имя, отменяем скачивание
         if (customName === null || customName.trim() === '') {
             return;
         }
@@ -148,211 +167,259 @@ export default function FilePage() {
 
     if (loading) {
         return (
-            <MainLayout>
+            <AdminLayout>
                 <div className="min-h-screen flex items-center justify-center">
                     <div className="text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
+                        <Loader2 className="w-12 h-12 text-main animate-spin mx-auto mb-4" />
                         <p className="text-gray-600">Загрузка файла...</p>
                     </div>
                 </div>
-            </MainLayout>
+            </AdminLayout>
         );
     }
 
     if (error || !file) {
         return (
-            <MainLayout>
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                    <div className="bg-white rounded-lg shadow overflow-hidden">
-                        <div className="text-center py-16">
-                            <div className="text-6xl mb-4">📁</div>
-                            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                                {error || 'Файл не найден'}
-                            </h3>
-                            <p className="text-gray-500 mb-6">
-                                Запрошенный файл не существует или был удален
-                            </p>
-                            <button
-                                onClick={() => router.push('/files')}
-                                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                            >
-                                Вернуться к списку файлов
-                            </button>
+            <AdminLayout>
+                <div className="min-h-screen bg-gray-50">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                            <div className="text-center py-16">
+                                <div className="text-6xl mb-4">📁</div>
+                                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                                    {error || 'Файл не найден'}
+                                </h3>
+                                <p className="text-gray-500 mb-6">
+                                    Запрошенный файл не существует или был удален
+                                </p>
+                                <button
+                                    onClick={() => router.push('/files')}
+                                    className="px-6 py-2 bg-main text-white rounded-lg hover:bg-main-dark transition-colors"
+                                >
+                                    Вернуться к списку файлов
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </MainLayout>
+            </AdminLayout>
         );
     }
 
     const canDelete = user?.role === 'admin' || user?.id === file?.user.id;
+    const isPreviewable = file.mime_type.startsWith('image/') || 
+                         file.mime_type === 'application/pdf' || 
+                         file.mime_type.startsWith('text/');
 
     return (
-        <MainLayout>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Навигация */}
-                <div className="mb-6">
-                    <Link 
-                        href="/files" 
-                        className="text-green-600 hover:text-green-700 inline-flex items-center gap-2"
-                    >
-                        ← Назад к списку файлов
-                    </Link>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Просмотр файла */}
-                    <div className="bg-white rounded-lg col-span-2 shadow-lg overflow-hidden">
-                        <div className="border-b border-gray-200 px-6 py-4 bg-gray-50">
-                            <h2 className="text-xl font-semibold text-gray-900">Просмотр файла</h2>
-                        </div>
-                        <div className="p-6">
-                            {file.mime_type.startsWith('image/') ? (
-                                <div className="flex items-center justify-center min-h-[400px] bg-gray-100 rounded-lg">
-                                    <img
-                                        src={getFileUrl(file.path)}
-                                        alt={file.original_name}
-                                        className="max-w-full max-h-[500px] object-contain"
-                                    />
-                                </div>
-                            ) : file.mime_type === 'application/pdf' ? (
-                                <iframe
-                                    src={getFileUrl(file.path)}
-                                    className="w-full h-[600px] border-0 rounded-lg"
-                                    title={file.original_name}
-                                />
-                            ) : file.mime_type.startsWith('text/') ? (
-                                <iframe
-                                    src={getFileUrl(file.path)}
-                                    className="w-full h-[600px] border rounded-lg"
-                                    title={file.original_name}
-                                />
-                            ) : (
-                                <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8 bg-gray-50 rounded-lg">
-                                    <div className="text-8xl mb-4">
-                                        {getFileIcon(file.mime_type)}
-                                    </div>
-                                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                                        {file.original_name}
-                                    </h3>
-                                    <p className="text-gray-500 mb-6">
-                                        Предварительный просмотр недоступен для этого типа файла
-                                    </p>
-                                    <button
-                                        onClick={downloadFile}
-                                        disabled={downloading}
-                                        className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                                    >
-                                        {downloading ? (
-                                            <>
-                                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                                                Скачивание...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <span>📥</span>
-                                                Скачать файл
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            )}
+        <AdminLayout>
+            <div className="min-h-screen bg-gray-50">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                    {/* Header с кнопкой назад */}
+                    <div className="flex items-center gap-4 mb-6">
+                        <button
+                            onClick={() => router.back()}
+                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                        >
+                            <ArrowLeft className="w-6 h-6 text-gray-600" />
+                        </button>
+                        <div>
+                            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">
+                                Просмотр файла
+                            </h2>
+                            <p className="text-gray-500 text-sm sm:text-base mt-1">
+                                Детальная информация о файле
+                            </p>
                         </div>
                     </div>
 
-                    {/* Информация о файле */}
-                    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-                        <div className="border-b border-gray-200 px-6 py-4 bg-gray-50">
-                            <h2 className="text-xl font-semibold text-gray-900">Информация о файле</h2>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            <div className="flex items-start">
-                                <span className="w-1/3 text-sm font-medium text-gray-500">ID:</span>
-                                <span className="w-2/3 text-sm text-gray-900">{file.id}</span>
-                            </div>
-                            <div className="flex items-start">
-                                <span className="w-1/3 text-sm font-medium text-gray-500">Название:</span>
-                                <span className="w-2/3 text-sm text-gray-900 break-words">{file.original_name}</span>
-                            </div>
-                            <div className="flex items-start">
-                                <span className="w-1/3 text-sm font-medium text-gray-500">Тип:</span>
-                                <span className="w-2/3 text-sm text-gray-900">
-                                    <span className="mr-1">{getFileIcon(file.mime_type)}</span>
-                                    {file.mime_type}
-                                </span>
-                            </div>
-                            <div className="flex items-start">
-                                <span className="w-1/3 text-sm font-medium text-gray-500">Размер:</span>
-                                <span className="w-2/3 text-sm text-gray-900">
-                                    {formatFileSize(file.size)}
-                                    <span className="text-gray-400 text-xs ml-1">
-                                        ({file.size.toLocaleString()} байт)
-                                    </span>
-                                </span>
-                            </div>
-                            <div className="flex items-start">
-                                <span className="w-1/3 text-sm font-medium text-gray-500">Автор:</span>
-                                <span className="w-2/3 text-sm text-gray-900">
-                                    {file.user.name ? (
-                                        <Link 
-                                            href={`/users/${file.user.id}`}
-                                            className="text-green-600 hover:text-green-700 hover:underline"
-                                        >
-                                            {file.user.name}
-                                        </Link>
+                    <div className="flex flex-col lg:flex-row gap-6">
+                        {/* Левая колонка - просмотр файла */}
+                        <div className="flex-1 min-w-0">
+                            <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
+                                <div className="bg-main px-4 sm:px-6 py-3 sm:py-4">
+                                    <h3 className="text-lg sm:text-xl font-semibold text-white flex items-center gap-2">
+                                        <Eye className="w-5 h-5" />
+                                        Просмотр
+                                    </h3>
+                                </div>
+                                <div className="min-h-[400px] sm:min-h-[500px] bg-gray-50">
+                                    {isPreviewable ? (
+                                        <>
+                                            {file.mime_type.startsWith('image/') && (
+                                                <div className="flex items-center justify-center min-h-[400px] sm:min-h-[500px] p-4 sm:p-8">
+                                                    <img
+                                                        src={getFileUrl(file.path)}
+                                                        alt={file.original_name}
+                                                        className="max-w-full max-h-full object-contain rounded-lg"
+                                                    />
+                                                </div>
+                                            )}
+                                            {file.mime_type === 'application/pdf' && (
+                                                <iframe
+                                                    src={getFileUrl(file.path)}
+                                                    className="w-full min-h-[400px] sm:min-h-[500px] border-0 rounded-b-lg"
+                                                    title={file.original_name}
+                                                />
+                                            )}
+                                            {file.mime_type.startsWith('text/') && (
+                                                <div className="w-full min-h-[400px] sm:min-h-[500px] p-4">
+                                                    <iframe
+                                                        src={getFileUrl(file.path)}
+                                                        className="w-full min-h-[500px] border rounded-lg bg-white"
+                                                        title={file.original_name}
+                                                    />
+                                                </div>
+                                            )}
+                                        </>
                                     ) : (
-                                        <Link 
-                                            href={`/users/${file.user.id}`}
-                                            className="text-green-600 hover:text-green-700 hover:underline"
-                                        >
-                                            Пользователь {file.user.id}
-                                        </Link>
+                                        <div className="flex flex-col items-center justify-center min-h-[400px] sm:min-h-[500px] text-center p-6 sm:p-8">
+                                            {getFileIcon(file.mime_type, 'large')}
+                                            <h3 className="text-xl sm:text-2xl font-semibold mb-2 sm:mb-3 mt-4 text-gray-900">
+                                                {file.original_name}
+                                            </h3>
+                                            <p className="text-gray-500 mb-6 text-sm sm:text-base">
+                                                Предварительный просмотр недоступен для этого типа файла
+                                            </p>
+                                            <button
+                                                onClick={downloadFile}
+                                                disabled={downloading}
+                                                className="px-4 sm:px-6 py-2 sm:py-3 bg-main text-white rounded-lg hover:bg-main-dark transition-colors disabled:opacity-50 flex items-center gap-2 text-sm sm:text-base"
+                                            >
+                                                {downloading ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                        Скачивание...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Download className="w-4 h-4" />
+                                                        Скачать файл
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
                                     )}
-                                </span>
-                            </div>
-                            <div className="flex items-start">
-                                <span className="w-1/3 text-sm font-medium text-gray-500">Создан:</span>
-                                <span className="w-2/3 text-sm text-gray-900">
-                                    {new Date(file.created_at).toLocaleString()}
-                                </span>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Действия */}
-                        <div className="border-t border-gray-200 px-6 py-4 bg-gray-50">
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={downloadFile}
-                                    disabled={downloading}
-                                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    {downloading ? (
-                                        <>
-                                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                                            Скачивание...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <span>📥</span>
-                                            Скачать файл
-                                        </>
-                                    )}
-                                </button>
-                                
-                                {canDelete && (
-                                    <button
-                                        onClick={deleteFile}
-                                        className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                                    >
-                                        <span>🗑️</span>
-                                        Удалить файл
-                                    </button>
-                                )}
+                        {/* Правая колонка - информация о файле */}
+                        <div className="lg:w-80 xl:w-96 flex-shrink-0">
+                            <div className="sticky top-4">
+                                <div className="bg-white rounded-xl shadow-lg border border-gray-100">
+                                    <div className="bg-main px-4 sm:px-6 py-3 sm:py-4 rounded-t-xl">
+                                        <h3 className="text-lg sm:text-xl font-semibold text-white flex items-center gap-2">
+                                            <FileCheck className="w-5 h-5" />
+                                            Информация
+                                        </h3>
+                                    </div>
+
+                                    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+                                        {/* Детали файла */}
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                                <div className="flex-shrink-0">
+                                                    {getFileIcon(file.mime_type, 'small')}
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-xs text-gray-500">Название</p>
+                                                    <p className="text-gray-900 font-medium text-sm break-words">
+                                                        {file.original_name}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                                <FileType className="w-5 h-5 text-main flex-shrink-0" />
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-xs text-gray-500">Тип файла</p>
+                                                    <p className="text-gray-900 text-sm break-words">
+                                                        {file.mime_type}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                                <HardDrive className="w-5 h-5 text-main flex-shrink-0" />
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-xs text-gray-500">Размер</p>
+                                                    <p className="text-gray-900 font-medium text-sm">
+                                                        {formatFileSize(file.size)}
+                                                    </p>
+                                                    <p className="text-gray-400 text-xs mt-0.5">
+                                                        ({file.size.toLocaleString()} байт)
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                                <User className="w-5 h-5 text-main flex-shrink-0" />
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-xs text-gray-500">Автор</p>
+                                                    <Link 
+                                                        href={`/users/${file.user.id}`}
+                                                        className="text-main hover:text-main-dark font-medium text-sm truncate block"
+                                                    >
+                                                        {file.user.name || `Пользователь ${file.user.id}`}
+                                                    </Link>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                                <Calendar className="w-5 h-5 text-main flex-shrink-0" />
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-xs text-gray-500">Создан</p>
+                                                    <p className="text-gray-900 text-sm">
+                                                        {new Date(file.created_at).toLocaleDateString('ru-RU', {
+                                                            day: 'numeric',
+                                                            month: 'long',
+                                                            year: 'numeric',
+                                                            hour: '2-digit',
+                                                            minute: '2-digit'
+                                                        })}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Действия */}
+                                        <div className="space-y-3 pt-4 border-t border-gray-200">
+                                            <button
+                                                onClick={downloadFile}
+                                                disabled={downloading}
+                                                className="w-full px-4 py-3 bg-main text-white rounded-lg hover:bg-main-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm sm:text-base"
+                                            >
+                                                {downloading ? (
+                                                    <>
+                                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                                        Скачивание...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Download className="w-5 h-5" />
+                                                        Скачать файл
+                                                    </>
+                                                )}
+                                            </button>
+                                            
+                                            {canDelete && (
+                                                <button
+                                                    onClick={deleteFile}
+                                                    className="w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                    Удалить файл
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </MainLayout>
+        </AdminLayout>
     );
 }

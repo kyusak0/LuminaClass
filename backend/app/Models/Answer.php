@@ -15,7 +15,8 @@ class Answer extends Model
         'students_comment',
         'teachers_comment',
         'mark',
-        'user_id'
+        'user_id',
+        'slug',
     ];
 
     public function task(){

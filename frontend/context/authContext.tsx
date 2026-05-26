@@ -42,22 +42,22 @@ const parseLaravelError = (error: any): string => {
         const firstError = errors[firstErrorKey];
         return Array.isArray(firstError) ? firstError[0] : firstError;
     }
-    
+
     // Если есть message
     if (error.response?.data?.message) {
         return error.response.data.message;
     }
-    
+
     // Если есть error
     if (error.response?.data?.error) {
         return error.response.data.error;
     }
-    
+
     // Стандартное сообщение
     if (error.message) {
         return error.message;
     }
-    
+
     return 'Произошла неизвестная ошибка';
 };
 
@@ -137,21 +137,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const post = async (link: string, data: any, showSuccessMessage: boolean = false) => {
         try {
-            let headers: any = {};
+            // Определяем тип данных
+            const isFormData = data instanceof FormData;
 
-            // Если данные не FormData, отправляем как JSON
-            if (!(data instanceof FormData)) {
-                headers['Content-Type'] = 'application/json';
+            const config: any = {
+                headers: {
+                    'Accept': 'application/json',
+                }
+            };
+
+            // Для FormData НЕ устанавливаем Content-Type, axios сам установит правильный с boundary
+            if (!isFormData) {
+                config.headers['Content-Type'] = 'application/json';
             }
 
-            const response = await axios.post(link, data, { headers });
-            
-            // Если нужно показать успешное сообщение
+            const response = await axios.post(link, data, config);
+
             if (showSuccessMessage && response.data?.message) {
-                // Здесь можно добавить toast или другое уведомление
                 console.log('Success:', response.data.message);
             }
-            
+
             return {
                 success: true,
                 data: response.data,
@@ -159,7 +164,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             };
         } catch (error: any) {
             const errorMessage = parseLaravelError(error);
-            
+
             return {
                 success: false,
                 message: errorMessage,
@@ -167,7 +172,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 status: error.response?.status
             };
         }
-    };
+    }
 
     const get = async (link: string) => {
         try {
@@ -179,7 +184,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             };
         } catch (error: any) {
             const errorMessage = parseLaravelError(error);
-            
+
             return {
                 success: false,
                 message: errorMessage,

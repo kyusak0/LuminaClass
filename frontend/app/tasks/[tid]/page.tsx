@@ -10,6 +10,47 @@ import FileViewer from "@/components/files/FileViewer";
 import ArchiveViewer from "@/components/files/ArchiveViewer";
 import SearchTable, { SearchRecord } from "@/components/searchTable/SearchTable";
 import { NEXT_PUBLIC_API_URL } from "@/lib/axios.config";
+import axios from '@/lib/axios.config';
+
+// Импорты иконок из lucide-react
+import {
+  ArrowLeft,
+  Download,
+  Eye,
+  FileArchive,
+  FileImage,
+  FileText,
+  FileIcon,
+  File,
+  FileCheck,
+  FileX,
+  FolderArchive,
+  X,
+  RefreshCw,
+  Send,
+  MessageSquare,
+  Calendar,
+  User,
+  BookOpen,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+  Upload,
+  FilePlus,
+  Trash2,
+  Archive,
+  Image as ImageIcon,
+  FileCode,
+  FileSpreadsheet,
+  FileAudio,
+  FileVideo,
+  FileQuestion,
+  Star,
+  StarOff,
+  Clock,
+  ExternalLink,
+  ChevronRight
+} from 'lucide-react';
 
 // Типы
 interface TaskInfo {
@@ -75,7 +116,7 @@ export default function BookingPage() {
 
     try {
       const res = await get(`/get-task/${id}`);
-      const data = res.data;
+      const data = res.data.data;
 
       console.log(data)
 
@@ -119,7 +160,7 @@ export default function BookingPage() {
     } catch (error: any) {
       console.error('Ошибка загрузки задания:', error);
       setError(error.message || 'Не удалось загрузить информацию о задании');
-      showAlert('❌ Ошибка', error.message || 'Не удалось загрузить информацию о задании', 'error');
+      showAlert('Ошибка', error.message || 'Не удалось загрузить информацию о задании', 'error');
     } finally {
       setLoading(false);
     }
@@ -196,6 +237,15 @@ export default function BookingPage() {
               add: markClass,
               tag: 'select'
             }
+          },
+          {
+            title: '',
+            key: 'actions',
+            data: {
+              value: '→',
+              size: 0.5,
+              add: 'text-center'
+            }
           }
         ]
       };
@@ -206,7 +256,10 @@ export default function BookingPage() {
   const showAlert = (title: string, message: string, type: 'success' | 'error' = 'success') => {
     const alertContent = (
       <div>
-        <div>{type === 'success' ? '✓' : '❌'} {title}</div>
+        <div className="flex items-center gap-2">
+          {type === 'success' ? <CheckCircle className="w-5 h-5 text-green-500" /> : <AlertCircle className="w-5 h-5 text-red-500" />}
+          <span className="font-semibold">{title}</span>
+        </div>
         <div className="font-semibold my-1">{message}</div>
         <div className="text-xs text-gray-500">
           в {new Date().toLocaleTimeString()}, {new Date().toLocaleDateString()}
@@ -214,6 +267,22 @@ export default function BookingPage() {
       </div>
     );
     setAlertMess({ content: alertContent });
+  };
+
+  // Загрузка файла на сервер
+  const uploadFile = async (file: File, customFileName?: string): Promise<number> => {
+    const formData = new FormData();
+    const fileName = customFileName || file.name;
+    formData.append('file', file, fileName);
+    formData.append('author_id', user?.id.toString() || '1');
+
+    const response = await axios.post('/save-file', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    
+    return response.data.file_id;
   };
 
   // Отправка ответа
@@ -224,17 +293,11 @@ export default function BookingPage() {
     setSubmitting(true);
 
     try {
-      let fileId;
+      let fileId = null;
 
       if (selectedFiles.length === 1) {
         const fileName = prompt(`Название для файла \n по умолчанию: ${selectedFiles[0].name}`) || selectedFiles[0].name;
-
-        const formData = new FormData();
-        formData.append('file', selectedFiles[0], fileName);
-        formData.append('author_id', user?.id.toString() || '1');
-
-        const saveFile: any = await post('/save-file', formData);
-        fileId = saveFile.file_id;
+        fileId = await uploadFile(selectedFiles[0], fileName);
       } else if (selectedFiles.length > 1) {
         const zip = new JSZip();
 
@@ -243,18 +306,12 @@ export default function BookingPage() {
           zip.file(file.name, arrayBuffer);
         }
 
-        const zipBlob = await zip.generateAsync({ type: 'blob' });
-        const zipFileName = `answer_${Date.now()}.zip`;
+        const zipBlob:Blob = await zip.generateAsync({ type: 'blob' });
+        const zipFileName:string = `answer_${Date.now()}.zip`;
         const zipFile = new File([zipBlob], zipFileName, { type: 'application/zip' });
 
         const fileName = prompt('Название для архива', zipFile.name) || zipFile.name;
-
-        const formData = new FormData();
-        formData.append('file', zipFile, fileName);
-        formData.append('author_id', user?.id.toString() || '1');
-
-        const saveFile: any = await post('/save-file', formData);
-        fileId = saveFile.file_id;
+        fileId = await uploadFile(zipFile, fileName);
       } else {
         throw new Error('Не выбраны файлы для отправки');
       }
@@ -262,7 +319,7 @@ export default function BookingPage() {
       const form: any = event.target;
       const newData = {
         task_id: task?.id,
-        answer_id: fileId || null,
+        answer_id: fileId,
         user_id: user?.id,
         students_comment: form.students_comment.value || null,
       };
@@ -284,7 +341,7 @@ export default function BookingPage() {
       await getTaskInfo(task.id);
     } catch (error: any) {
       console.error('Ошибка при отправке ответа:', error);
-      showAlert('Ошибка', error.message || 'Не удалось отправить ответ', 'error');
+      showAlert('Ошибка', error.response?.data?.message || error.message || 'Не удалось отправить ответ', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -308,14 +365,33 @@ export default function BookingPage() {
   };
 
   // Получение иконки файла
-  const getFileIcon = (mimeType: string) => {
-    if (mimeType?.includes('pdf')) return '📄';
-    if (mimeType?.includes('image')) return '🖼️';
-    if (mimeType?.includes('word') || mimeType?.includes('document')) return '📝';
-    if (mimeType?.includes('excel') || mimeType?.includes('spreadsheet')) return '📊';
-    if (mimeType?.includes('zip') || mimeType?.includes('compressed')) return '📦';
-    if (mimeType?.includes('text') || mimeType?.includes('plain')) return '📃';
-    return '📎';
+  const getFileIcon = (mimeType: string, fileName?: string) => {
+    const extension = fileName?.split('.').pop()?.toLowerCase();
+    
+    if (mimeType?.includes('pdf')) return <File className="w-5 h-5 text-red-500" />;
+    if (mimeType?.includes('image')) return <ImageIcon className="w-5 h-5 text-purple-500" />;
+    if (mimeType?.includes('word') || extension === 'doc' || extension === 'docx') return <FileText className="w-5 h-5 text-blue-500" />;
+    if (mimeType?.includes('excel') || extension === 'xls' || extension === 'xlsx') return <FileSpreadsheet className="w-5 h-5 text-green-500" />;
+    if (mimeType?.includes('zip') || extension === 'zip' || extension === 'rar') return <FileArchive className="w-5 h-5 text-yellow-500" />;
+    if (mimeType?.includes('text') || extension === 'txt') return <FileCode className="w-5 h-5 text-gray-500" />;
+    if (mimeType?.includes('audio')) return <FileAudio className="w-5 h-5 text-indigo-500" />;
+    if (mimeType?.includes('video')) return <FileVideo className="w-5 h-5 text-pink-500" />;
+    
+    return <FileIcon className="w-5 h-5 text-gray-400" />;
+  };
+
+  // Получение большой иконки файла
+  const getLargeFileIcon = (mimeType: string, fileName?: string) => {
+    const extension = fileName?.split('.').pop()?.toLowerCase();
+    
+    if (mimeType?.includes('pdf')) return <File className="w-20 h-20 text-red-500" />;
+    if (mimeType?.includes('image')) return <ImageIcon className="w-20 h-20 text-purple-500" />;
+    if (mimeType?.includes('word') || extension === 'doc' || extension === 'docx') return <FileText className="w-20 h-20 text-blue-500" />;
+    if (mimeType?.includes('excel') || extension === 'xls' || extension === 'xlsx') return <FileSpreadsheet className="w-20 h-20 text-green-500" />;
+    if (mimeType?.includes('zip') || extension === 'zip' || extension === 'rar') return <FolderArchive className="w-20 h-20 text-yellow-500" />;
+    if (mimeType?.includes('text') || extension === 'txt') return <FileCode className="w-20 h-20 text-gray-500" />;
+    
+    return <FileQuestion className="w-20 h-20 text-gray-400" />;
   };
 
   // Получение URL файла
@@ -357,19 +433,20 @@ export default function BookingPage() {
     }
   };
 
+  // Переход к ответу
+  const navigateToAnswer = (answerId: number) => {
+    router.push(`/answers/${answerId}`);
+  };
+
   // Просмотр файла задания
   const handleViewTaskFile = () => {
     if (!task?.fileId) return;
 
-    const fileType = getFileTypeFromMime(task.fileType, task.fileName);
-
     setViewingFile({
       id: task.fileId,
       original_name: task.fileName,
-      file_type: fileType,
       path: task.fileUrl,
       mime_type: task.fileType,
-      size: 0
     });
     setShowFileViewer(true);
   };
@@ -378,12 +455,9 @@ export default function BookingPage() {
   const handleViewAnswerFile = (answer: AnswerData) => {
     if (!answer.file) return;
 
-    const fileType = getFileTypeFromMime(answer.file.mime_type, answer.file.original_name);
-
     setViewingFile({
       id: answer.file.id,
       original_name: answer.file.original_name,
-      file_type: fileType,
       path: answer.file.path,
       mime_type: answer.file.mime_type,
       size: answer.file.size
@@ -391,26 +465,11 @@ export default function BookingPage() {
     setShowFileViewer(true);
   };
 
-  // Определение типа файла по MIME
-  const getFileTypeFromMime = (mimeType: string, fileName: string) => {
-    const extension = fileName.split('.').pop()?.toLowerCase();
-
-    if (mimeType?.startsWith('image/')) return 'image';
-    if (mimeType?.includes('word') || extension === 'doc' || extension === 'docx') return 'word';
-    if (mimeType?.includes('excel') || extension === 'xls' || extension === 'xlsx') return 'excel';
-    if (mimeType?.includes('presentation') || extension === 'ppt' || extension === 'pptx') return 'powerpoint';
-    if (mimeType?.includes('text') || extension === 'txt') return 'text';
-    if (mimeType?.includes('zip') || extension === 'zip' || extension === 'rar') return 'archive';
-    if (mimeType === 'application/pdf') return 'pdf';
-
-    return 'unknown';
-  };
-
   // Действия для таблицы ответов
   const answerActions = useMemo(() => [
     {
-      label: '📥 Скачать',
-      icon: '📥',
+      label: 'Скачать',
+      icon: <Download className="w-4 h-4" />,
       onClick: (record: SearchRecord) => {
         const answer = answers.find(a => a.id === record.id);
         if (answer?.file?.id && answer?.file?.original_name) {
@@ -419,15 +478,15 @@ export default function BookingPage() {
           showAlert('Внимание', 'Файл не прикреплен к ответу', 'error');
         }
       },
-      className: 'bg-blue-500 text-white hover:bg-blue-600 px-3 py-1 rounded text-sm',
+      className: 'bg-blue-500 text-white hover:bg-blue-600 px-3 py-1.5 rounded-lg text-sm flex items-center gap-1',
       getLabel: (record: SearchRecord) => {
         const answer = answers.find(a => a.id === record.id);
-        return answer?.file ? '📥 Скачать файл' : '📭 Нет файла';
+        return answer?.file ? 'Скачать файл' : 'Нет файла';
       }
     },
     {
-      label: '👁️ Просмотр',
-      icon: '👁️',
+      label: 'Просмотр',
+      icon: <Eye className="w-4 h-4" />,
       onClick: (record: SearchRecord) => {
         const answer = answers.find(a => a.id === record.id);
         if (answer?.file) {
@@ -436,11 +495,22 @@ export default function BookingPage() {
           showAlert('Внимание', 'Нет файла для просмотра', 'error');
         }
       },
-      className: 'bg-green-500 text-white hover:bg-green-600 px-3 py-1 rounded text-sm',
+      className: 'bg-green-500 text-white hover:bg-green-600 px-3 py-1.5 rounded-lg text-sm flex items-center gap-1',
       getLabel: (record: SearchRecord) => {
         const answer = answers.find(a => a.id === record.id);
-        return answer?.file ? '👁️ Просмотр' : '👁️ Нет файла';
+        return answer?.file ? 'Просмотр' : 'Нет файла';
       }
+    },
+    {
+      label: 'Перейти',
+      icon: <ExternalLink className="w-4 h-4" />,
+      onClick: (record: SearchRecord) => {
+        if (record.id) {
+          navigateToAnswer(Number(record.id));
+        }
+      },
+      className: 'bg-purple-500 text-white hover:bg-purple-600 px-3 py-1.5 rounded-lg text-sm flex items-center gap-1',
+      getLabel: () => 'Перейти к ответу'
     }
   ], [answers]);
 
@@ -460,11 +530,39 @@ export default function BookingPage() {
             onClick={() => handleViewAnswerFile(answer)}
             className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
           >
-            📄 {value}
+            {getFileIcon(answer.file.mime_type, answer.file.original_name)}
+            <span className="truncate max-w-[200px]">{value}</span>
           </button>
         );
       }
-      return <span className="text-gray-400">{value}</span>;
+      return <span className="text-gray-400 flex items-center gap-1"><FileX className="w-4 h-4" /> {value}</span>;
+    },
+    mark: (value: string, record: SearchRecord) => {
+      const answer = answers.find(a => a.id === record.id);
+      const mark = answer?.mark;
+      
+      if (mark && mark > 0) {
+        return (
+          <div className="flex items-center gap-1">
+            {mark >= 4 ? <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" /> : <StarOff className="w-4 h-4 text-gray-400" />}
+            <span className={mark >= 4 ? 'text-green-600 font-bold' : mark >= 3 ? 'text-yellow-600 font-bold' : 'text-red-600 font-bold'}>
+              {mark}
+            </span>
+          </div>
+        );
+      }
+      return <span className="text-gray-400">—</span>;
+    },
+    actions: (value: string, record: SearchRecord) => {
+      return (
+        <button
+          onClick={() => navigateToAnswer(Number(record.id))}
+          className="text-main hover:text-main-dark transition-colors p-1 rounded-full hover:bg-gray-100"
+          title="Перейти к ответу"
+        >
+          <ChevronRight className="w-5 h-5" />
+        </button>
+      );
     }
   }), [answers]);
 
@@ -481,9 +579,12 @@ export default function BookingPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="h-170 flex flex-col items-center justify-center">
-        <div className="text-lg">Загрузка...</div>
-      </div>
+      <MainLayout>
+        <div className="h-170 flex flex-col items-center justify-center">
+          <Loader2 className="w-12 h-12 text-main animate-spin mb-4" />
+          <div className="text-lg">Загрузка...</div>
+        </div>
+      </MainLayout>
     );
   }
 
@@ -494,13 +595,14 @@ export default function BookingPage() {
       <MainLayout alertMess={alertMess?.content}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
-            <div className="text-6xl mb-4">⚠️</div>
+            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-red-800 mb-2">Ошибка загрузки</h2>
             <p className="text-red-600 mb-4">{error}</p>
             <button
               onClick={() => router.push('/tasks')}
-              className="px-6 py-2 bg-main text-white rounded-lg hover:bg-main-dark transition-colors"
+              className="px-6 py-2 bg-main text-white rounded-lg hover:bg-main-dark transition-colors flex items-center gap-2 mx-auto"
             >
+              <ArrowLeft className="w-4 h-4" />
               Вернуться к списку заданий
             </button>
           </div>
@@ -512,55 +614,60 @@ export default function BookingPage() {
   if (!task) return null;
 
   const isZipFile = task?.fileType === 'application/zip' || task?.fileName?.endsWith('.zip');
-  const fileType = getFileTypeFromMime(task.fileType, task.fileName);
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
 
   return (
     <MainLayout alertMess={alertMess?.content}>
-      {/* File Viewer */}
+      {/* File Viewer Modal */}
       {showFileViewer && viewingFile && (
-
-
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg w-[90vw] h-[90vh] flex flex-col">
             <div className="border-b p-4 flex justify-between items-center">
-              <h3 className="text-lg font-semibold">{viewingFile.original_name}</h3>
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                {getFileIcon(viewingFile.mime_type, viewingFile.original_name)}
+                {viewingFile.original_name}
+              </h3>
               <button
                 onClick={() => setShowFileViewer(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
+                className="text-gray-500 hover:text-gray-700"
               >
-                ×
+                <X className="w-6 h-6" />
               </button>
             </div>
             <div className="flex-1 overflow-auto p-4">
-              {viewingFile.file_type === 'image' && viewingFile.path && (
+              {viewingFile.mime_type?.startsWith('image/') && viewingFile.path && (
                 <img
                   src={getFileUrl(viewingFile.path)}
                   alt={viewingFile.original_name}
                   className="max-w-full max-h-full object-contain mx-auto"
                 />
               )}
-              {viewingFile.file_type === 'pdf' && viewingFile.path && (
+              {viewingFile.mime_type === 'application/pdf' && viewingFile.path && (
                 <iframe
                   src={getFileUrl(viewingFile.path)}
                   className="w-full h-full"
                   title={viewingFile.original_name}
                 />
               )}
-              {(viewingFile.file_type === 'text' || viewingFile.file_type === 'word') && (
+              {(viewingFile.mime_type?.includes('text') || viewingFile.mime_type?.includes('word')) && (
                 <FileViewer
                   file={viewingFile}
                   onClose={() => setShowFileViewer(false)}
-                  onDownload={downloadFile}  // Добавьте эту строку
+                  onDownload={downloadFile}
                 />
               )}
-              {viewingFile.file_type === 'unknown' && (
+              {!viewingFile.mime_type?.startsWith('image/') && 
+               viewingFile.mime_type !== 'application/pdf' && 
+               !viewingFile.mime_type?.includes('text') && 
+               !viewingFile.mime_type?.includes('word') && (
                 <div className="text-center p-8">
-                  <p>Невозможно просмотреть этот тип файла</p>
+                  {getLargeFileIcon(viewingFile.mime_type, viewingFile.original_name)}
+                  <p className="mt-4 text-gray-600">Невозможно просмотреть этот тип файла</p>
                   <button
                     onClick={() => downloadFile(viewingFile.id, viewingFile.original_name)}
-                    className="mt-4 px-4 py-2 bg-main text-white rounded"
+                    className="mt-4 px-4 py-2 bg-main text-white rounded-lg flex items-center gap-2 mx-auto"
                   >
+                    <Download className="w-4 h-4" />
                     Скачать файл
                   </button>
                 </div>
@@ -583,80 +690,84 @@ export default function BookingPage() {
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="text-4xl font-bold mb-8">
-          {task?.title}
-        </h2>
+        <div className="flex items-center gap-4 mb-8">
+          <button
+            onClick={() => router.push('/tasks')}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-6 h-6 text-gray-600" />
+          </button>
+          <h2 className="text-4xl font-bold">
+            {task?.title}
+          </h2>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
           {/* Левая колонка - контент задания */}
-          <div className="lg:col-span-3">
-            <div className="bg-white rounded-lg shadow-md overflow-hidden">
-              <div className="min-h-[500px] bg-gray-50">
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-lg shadow-md overflow-hidden sticky top-4">
+              <div className="min-h-[400px] bg-gray-50">
                 {isZipFile ? (
-                  <div className="flex flex-col items-center justify-center h-[500px] text-center p-8">
-                    <div className="text-8xl mb-6">📦</div>
-                    <h3 className="text-2xl font-semibold mb-3">ZIP архив</h3>
-                    <p className="text-gray-600 mb-4">{task?.fileName}</p>
-                    <p className="text-gray-600 mb-6">Этот архив содержит вложенные файлы</p>
-                    <div className="flex gap-3">
+                  <div className="flex flex-col items-center justify-center h-[400px] text-center p-6">
+                    <FolderArchive className="w-20 h-20 text-yellow-500 mb-4" />
+                    <h3 className="text-xl font-semibold mb-2">ZIP архив</h3>
+                    <p className="text-gray-600 text-sm mb-4">{task?.fileName}</p>
+                    <p className="text-gray-600 text-sm mb-4">Этот архив содержит вложенные файлы</p>
+                    <div className="flex gap-2">
                       <button
                         onClick={() => setShowArchiveViewer(true)}
-                        className="px-6 py-3 bg-main text-white rounded-lg hover:bg-main-dark transition-colors"
+                        className="px-4 py-2 bg-main text-white rounded-lg hover:bg-main-dark transition-colors flex items-center gap-2 text-sm"
                       >
-                        📂 Просмотреть содержимое
+                        <FolderArchive className="w-4 h-4" />
+                        Просмотреть
                       </button>
                       <button
                         onClick={() => downloadFile(task?.fileId || 0, task?.fileName || '')}
-                        className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 text-sm"
                       >
-                        📥 Скачать архив
+                        <Download className="w-4 h-4" />
+                        Скачать
                       </button>
                     </div>
                   </div>
-                ) : fileType === 'image' ? (
+                ) : task?.fileType?.startsWith('image/') ? (
                   <div
-                    className="flex items-center justify-center h-full p-8 cursor-pointer"
+                    className="flex items-center justify-center h-[400px] p-4 cursor-pointer"
                     onClick={handleViewTaskFile}
                   >
                     <img
                       src={getFileUrl(task?.fileUrl || '')}
                       alt={task?.fileName}
-                      className="max-w-full max-h-[80vh] object-contain"
+                      className="max-w-full max-h-full object-contain"
                     />
                   </div>
-                ) : fileType === 'pdf' ? (
+                ) : task?.fileType === 'application/pdf' ? (
                   <iframe
                     src={getFileUrl(task?.fileUrl || '')}
-                    className="w-full h-[80vh] border-0"
+                    className="w-full h-[400px] border-0"
                     title={task?.fileName}
                   />
-                ) : (fileType === 'text' || fileType === 'word') ? (
-                  <div className="flex flex-col items-center justify-center h-[500px] text-center p-8">
-                    <div className="text-8xl mb-6">
-                      {getFileIcon(task?.fileType?.toString() || '')}
-                    </div>
-                    <h3 className="text-2xl font-semibold mb-3">{task?.fileName}</h3>
-                    <p className="text-gray-600 mb-6">Нажмите для просмотра</p>
-                    <button
-                      onClick={handleViewTaskFile}
-                      className="px-6 py-3 bg-main text-white rounded-lg hover:bg-main-dark transition-colors"
-                    >
-                      👁️ Просмотреть файл
-                    </button>
-                  </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-[500px] text-center p-8">
-                    <div className="text-8xl mb-6">
-                      {getFileIcon(task?.fileType?.toString() || '')}
+                  <div className="flex flex-col items-center justify-center h-[400px] text-center p-6">
+                    {getLargeFileIcon(task?.fileType, task?.fileName)}
+                    <h3 className="text-xl font-semibold mb-2 mt-4">{task?.fileName}</h3>
+                    <p className="text-gray-600 text-sm mb-4">Нажмите для просмотра или скачайте файл</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleViewTaskFile}
+                        className="px-4 py-2 bg-main text-white rounded-lg hover:bg-main-dark transition-colors flex items-center gap-2 text-sm"
+                      >
+                        <Eye className="w-4 h-4" />
+                        Просмотреть
+                      </button>
+                      <button
+                        onClick={() => downloadFile(task?.fileId || 0, task?.fileName || '')}
+                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 text-sm"
+                      >
+                        <Download className="w-4 h-4" />
+                        Скачать
+                      </button>
                     </div>
-                    <h3 className="text-2xl font-semibold mb-3">{task?.fileName}</h3>
-                    <p className="text-gray-600 mb-6">На данный момент нельзя открыть файл этого типа на сайте</p>
-                    <button
-                      onClick={() => downloadFile(task?.fileId || 0, task?.fileName || '')}
-                      className="px-6 py-3 bg-main text-white rounded-lg hover:bg-main-dark transition-colors"
-                    >
-                      📥 Скачать файл
-                    </button>
                   </div>
                 )}
               </div>
@@ -664,16 +775,20 @@ export default function BookingPage() {
           </div>
 
           {/* Правая колонка - информация и форма отправки */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-md p-6 max-h-[80vh] overflow-y-auto">
+          <div className="lg:col-span-3">
+            <div className="bg-white rounded-lg shadow-md p-6">
               <div className="mb-6">
-                <h3 className="text-xl font-semibold text-gray-900 mb-4 pb-3 border-b border-gray-200">
+                <h3 className="text-xl font-semibold text-gray-900 mb-4 pb-3 border-b border-gray-200 flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-main" />
                   Информация о задании
                 </h3>
 
-                <div className="space-y-4">
-                  <div className="flex items-center">
-                    <div className="text-sm text-gray-500 w-24">Учитель:</div>
+                <div className="space-y-3">
+                  <div className="flex">
+                    <div className="flex items-start gap-2 w-24">
+                      <User className="w-4 h-4 text-gray-400 mt-0.5" />
+                      <span className="text-sm text-gray-500">Учитель:</span>
+                    </div>
                     <Link
                       href={`/users/${task?.teacherId}`}
                       className="text-main hover:text-main-dark font-medium"
@@ -682,15 +797,21 @@ export default function BookingPage() {
                     </Link>
                   </div>
 
-                  <div className="flex items-center">
-                    <div className="text-sm text-gray-500 w-24">Срок сдачи:</div>
+                  <div className="flex">
+                    <div className="flex items-start gap-2 w-24">
+                      <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
+                      <span className="text-sm text-gray-500">Срок:</span>
+                    </div>
                     <div className={`font-medium ${Date.parse(task?.deadline) <= Date.now() ? 'text-red-600' : 'text-gray-900'}`}>
                       {new Date(task?.deadline).toLocaleString('ru-RU')}
                     </div>
                   </div>
 
                   <div className="flex">
-                    <div className="text-sm text-gray-500 w-24">Описание:</div>
+                    <div className="flex items-start gap-2 w-24">
+                      <MessageSquare className="w-4 h-4 text-gray-400 mt-0.5" />
+                      <span className="text-sm text-gray-500">Описание:</span>
+                    </div>
                     <p className="text-gray-700 leading-relaxed flex-1">
                       {task?.description || 'Нет описания'}
                     </p>
@@ -698,18 +819,9 @@ export default function BookingPage() {
                 </div>
               </div>
 
-              <div className="space-y-3 mb-6">
-                <button
-                  onClick={() => downloadFile(task?.fileId || 0, task?.fileName || '')}
-                  className="w-full px-4 py-3 bg-main text-white rounded-lg hover:bg-main-dark transition-colors flex items-center justify-center gap-2"
-                >
-                  <span>📥</span>
-                  <span>Скачать задание</span>
-                </button>
-              </div>
-
               <div className="border-t border-gray-200 pt-6">
-                <h3 className="text-xl font-semibold text-gray-900 mb-4">
+                <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <Send className="w-5 h-5 text-main" />
                   Отправить ответ
                 </h3>
 
@@ -732,9 +844,10 @@ export default function BookingPage() {
                       Файл(ы) с ответом <span className="text-red-500">*</span>
                     </label>
                     <div className="flex items-center justify-center w-full">
-                      <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
-                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                          <p className="mb-2 text-sm text-gray-500">
+                      <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
+                        <div className="flex flex-col items-center justify-center pt-4 pb-4">
+                          <Upload className="w-6 h-6 text-gray-400 mb-1" />
+                          <p className="mb-1 text-xs text-gray-500">
                             <span className="font-semibold">Нажмите для загрузки</span> или перетащите файлы
                           </p>
                           <p className="text-xs text-gray-500">Можно выбрать несколько файлов (будут упакованы в ZIP)</p>
@@ -752,24 +865,29 @@ export default function BookingPage() {
 
                     {selectedFiles.length > 0 && (
                       <div className="mt-3 space-y-2">
-                        <p className="text-sm font-medium text-gray-700">
+                        <p className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                          <FilePlus className="w-4 h-4 text-main" />
                           Выбрано файлов: {selectedFiles.length}
                           {selectedFiles.length > 1 && (
-                            <span className="ml-2 text-main">(будут упакованы в ZIP архив)</span>
+                            <span className="ml-2 text-main flex items-center gap-1">
+                              <Archive className="w-3 h-3" />
+                              (будут упакованы в ZIP архив)
+                            </span>
                           )}
                         </p>
                         <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2 bg-gray-50">
                           {selectedFiles.map((file, index) => (
                             <div key={index} className="flex items-center justify-between py-1 px-2 hover:bg-white rounded">
-                              <span className="text-sm text-gray-600 truncate flex-1">
+                              <span className="text-sm text-gray-600 truncate flex-1 flex items-center gap-2">
+                                {getFileIcon(file.type, file.name)}
                                 {file.name} ({(file.size / 1024).toFixed(2)} KB)
                               </span>
                               <button
                                 type="button"
                                 onClick={() => removeFile(index)}
-                                className="text-red-500 hover:text-red-700 text-xs ml-2 font-bold"
+                                className="text-red-500 hover:text-red-700"
                               >
-                                ✕
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
                           ))}
@@ -783,8 +901,17 @@ export default function BookingPage() {
                     disabled={disabled || submitting}
                     className="w-full py-3 bg-main text-white rounded-lg hover:bg-main-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    <span>{submitting ? '⏳' : '📤'}</span>
-                    <span>{submitting ? 'Отправка...' : 'Отправить ответ'}</span>
+                    {submitting ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Отправка...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-5 h-5" />
+                        Отправить ответ
+                      </>
+                    )}
                   </button>
                 </form>
               </div>
@@ -797,7 +924,8 @@ export default function BookingPage() {
           <div className="mt-12">
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h3 className="text-2xl font-bold text-gray-900">
+                <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                  <FileCheck className="w-6 h-6 text-main" />
                   Ответы учеников
                   {answers.length > 0 && (
                     <span className="ml-3 text-sm font-normal text-gray-500">
@@ -806,14 +934,15 @@ export default function BookingPage() {
                   )}
                 </h3>
                 <p className="text-sm text-gray-500 mt-1">
-                  Нажмите на файл для просмотра или используйте кнопки действий
+                  Нажмите на файл для просмотра, используйте кнопки действий или нажмите на стрелку для перехода к ответу
                 </p>
               </div>
               <button
                 onClick={() => getTaskInfo(task.id)}
                 className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
               >
-                🔄 Обновить
+                <RefreshCw className="w-4 h-4" />
+                Обновить
               </button>
             </div>
 
@@ -825,10 +954,11 @@ export default function BookingPage() {
                 compactView={true}
                 studentNameField="Ученик"
                 gradeField="Оценка"
+                onRowClick={(record) => navigateToAnswer(Number(record.id))}
               />
             ) : (
               <div className="bg-white rounded-lg shadow-md p-12 text-center">
-                <div className="text-7xl mb-4">📭</div>
+                <FileQuestion className="w-20 h-20 text-gray-400 mx-auto mb-4" />
                 <h4 className="text-xl font-semibold text-gray-700 mb-2">Нет ответов</h4>
                 <p className="text-gray-500">
                   Пока ни один ученик не отправил ответ на это задание
@@ -842,7 +972,7 @@ export default function BookingPage() {
         {!isTeacher && answers.some(a => a.user_id === user?.id) && (
           <div className="mt-12 bg-blue-50 border border-blue-200 rounded-lg p-6">
             <div className="flex items-center gap-3">
-              <div className="text-3xl">📨</div>
+              <CheckCircle className="w-8 h-8 text-blue-500" />
               <div>
                 <h3 className="text-lg font-semibold text-blue-900">Ваш ответ отправлен</h3>
                 <p className="text-blue-700">

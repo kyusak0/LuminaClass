@@ -1,15 +1,20 @@
 <?php
 
+use App\Events\ChatMessageEvent;
+use App\Events\GroupChatEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BookingController;
+use App\Http\Controllers\ChatController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\OrganizationController;
+use App\Models\Group;
+use App\Models\GroupMessage;
 
 /*
 |--------------------------------------------------------------------------
@@ -85,13 +90,19 @@ Route::middleware('api')->group(function () {
         Route::get('/users/active', [UserController::class, 'getActiveUsers']);
         Route::get('/get-users', [UserController::class, 'getUsers']);
 
+        Route::post('/chat/send', [ChatController::class,'send']);
+        Route::get('/chat/history/{channel}', [ChatController::class, 'historyChat']);
+        Route::post('/groups/{groupId}/chat/send', [ChatController::class,'groupChatSend']);
+
+        Route::get('/groups/{groupId}/chat/history', [ChatController::class,'showHistoryGroup']);
+
+
         Route::get('/user', [UserController::class, 'user']);
         Route::post('/logout', [UserController::class, 'logout']);
     });
-});
-
-
-Route::middleware(['auth:sanctum', 'check.blocked'])->group(function () {
-    Route::get('/user', [UserController::class, 'user']);
-    Route::post('/logout', [UserController::class, 'logout']);
+    
+    Route::middleware(['auth:sanctum', 'check.blocked'])->group(function () {
+        Route::get('/user', [UserController::class, 'user']);
+        Route::post('/logout', [UserController::class, 'logout']);
+    });
 });

@@ -197,7 +197,7 @@ class TaskController extends Controller
 
         $data = Task::with(['answers'])->get();
 
-        $groups = Group::with(['students','students.user'])->get(); 
+        $groups = Group::with(['students.user', 'teacher'])->get(); 
         
         return response()->json([
             'groups' => $groups,

@@ -4,22 +4,70 @@
 import AdminLayout from "@/layouts/AdminLayout";
 import Link from "next/link";
 import { useAuth } from "@/context/authContext";
-import { 
-    Users, 
-    UserPlus, 
-    BookOpen, 
-    FileText, 
-    ClipboardCheck, 
-    Settings, 
+import {
+    Users,
+    UserPlus,
+    BookOpen,
+    FileText,
+    ClipboardCheck,
+    Settings,
     Activity,
     Shield,
     TrendingUp,
     Calendar
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import AdminLoader from "@/components/adminLoader/AdminLoader";
 
 export default function AdminPanel() {
-    const auth = useAuth();
-    const user = auth?.user;
+
+    const auth = useAuth()
+    if (!auth) return
+    const { user, get, post, loading } = auth;
+
+    const [stats, setStats] = useState({
+        registrations: 0,
+        users: 0,
+        groups: 0,
+        tasks: 0
+    });
+
+    const [statsLoading, setStatsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                // Получаем заявки на регистрацию (pending статус)
+                const registrationsRes = await get("/get-registrations");
+                const registrationsCount = registrationsRes?.data?.data?.length || 0;
+
+                // Получаем всех пользователей
+                const usersRes = await get("/get-users");
+                const usersCount = usersRes?.data?.data?.length || 0;
+
+                // Получаем все группы
+                const groupsRes = await get("/get-groups");
+                const groupsCount = groupsRes?.data?.data?.length || 0;
+
+                // Получаем все задания
+                const tasksRes = await get("/get-tasks");
+                const tasksCount = tasksRes?.data?.data?.length || 0;
+
+                setStats({
+                    registrations: registrationsCount,
+                    users: usersCount,
+                    groups: groupsCount,
+                    tasks: tasksCount
+                });
+            } catch (error) {
+                console.error("Ошибка при загрузке статистики:", error);
+            } finally {
+                setStatsLoading(false);
+            }
+        };
+
+        fetchStats();
+    }, [get]);
 
     const menuItems = [
         {
@@ -89,14 +137,52 @@ export default function AdminPanel() {
     ];
 
     const statsCards = [
-        { label: 'Всего заявок', value: '0', icon: UserPlus, trend: '+0', color: 'text-blue-600', borderColor: 'border-blue-500', bgColor: 'bg-blue-50' },
-        { label: 'Всего пользователей', value: '0', icon: Users, trend: '+0', color: 'text-green-600', borderColor: 'border-green-500', bgColor: 'bg-green-50' },
-        { label: 'Всего групп', value: '0', icon: Users, trend: '+0', color: 'text-purple-600', borderColor: 'border-purple-500', bgColor: 'bg-purple-50' },
-        { label: 'Всего заданий', value: '0', icon: BookOpen, trend: '+0', color: 'text-orange-600', borderColor: 'border-orange-500', bgColor: 'bg-orange-50' },
+        {
+            label: 'Всего заявок',
+            value: stats.registrations.toString(),
+            icon: UserPlus,
+            trend: stats.registrations > 0 ? `+${stats.registrations}` : '0',
+            color: 'text-blue-600',
+            borderColor: 'border-blue-500',
+            bgColor: 'bg-blue-50'
+        },
+        {
+            label: 'Всего пользователей',
+            value: stats.users.toString(),
+            icon: Users,
+            trend: stats.users > 0 ? `+${stats.users}` : '0',
+            color: 'text-green-600',
+            borderColor: 'border-green-500',
+            bgColor: 'bg-green-50'
+        },
+        {
+            label: 'Всего групп',
+            value: stats.groups.toString(),
+            icon: Users,
+            trend: stats.groups > 0 ? `+${stats.groups}` : '0',
+            color: 'text-purple-600',
+            borderColor: 'border-purple-500',
+            bgColor: 'bg-purple-50'
+        },
+        {
+            label: 'Всего заданий',
+            value: stats.tasks.toString(),
+            icon: BookOpen,
+            trend: stats.tasks > 0 ? `+${stats.tasks}` : '0',
+            color: 'text-orange-600',
+            borderColor: 'border-orange-500',
+            bgColor: 'bg-orange-50'
+        },
     ];
 
+    if (statsLoading) {
+        return (
+            <AdminLoader />
+        );
+    }
+
     return (
-        <AdminLayout 
+        <AdminLayout
             title="Панель администратора"
             subtitle={`Добро пожаловать, ${user?.name || user?.login}!`}
         >
@@ -116,7 +202,7 @@ export default function AdminPanel() {
                                     {card.trend && (
                                         <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
                                             <TrendingUp className="w-3 h-3" />
-                                            {card.trend} за неделю
+                                            {card.trend} всего
                                         </p>
                                     )}
                                 </div>

@@ -15,6 +15,7 @@ class Task extends Model
         'description', 
         'deadline', 
         'user_id',
+        'slug',
     ]; 
 
     public function group(){

@@ -15,7 +15,8 @@ class Booking extends Model
         'surname',
         'tel',
         'target', 
-        'messanger'
+        'messanger',
+        'user_id',
     ];
 
     public function user(){
