@@ -2,8 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\ChatMessageEvent;
-use App\Events\GroupChatEvent;
 use App\Http\Controllers\Controller;
 use App\Models\Group;
 use App\Models\GroupMessage;
@@ -11,7 +9,9 @@ use Illuminate\Http\Request;
 
 class ChatController extends Controller
 {
-    public function send (Request $request) {
+    // Простой общий чат
+    public function send(Request $request)
+    {
         $user = $request->user();
         
         $messageData = [
@@ -23,40 +23,42 @@ class ChatController extends Controller
             'created_at' => now()->toISOString(),
         ];
         
-        broadcast(new ChatMessageEvent($messageData['channel'], $messageData));
-        
         return response()->json([
-            'status' => 'sent',
+            'success' => true,
             'message' => $messageData
         ]);
     }
-    public function historyChat ($channel) {
-    
+
+    public function historyChat($channel)
+    {
         return response()->json([
-            'messages' => [] 
+            'success' => true,
+            'messages' => []
         ]);
-    
     }
 
-    public function groupChatSend ($groupId, Request $request) {
+    // Групповой чат
+    public function groupChatSend($groupId, Request $request)
+    {
         $user = $request->user();
         
-        // Проверяем, имеет ли пользователь доступ к группе
+        // Проверка доступа
         $group = Group::findOrFail($groupId);
-        
-        // Проверка: студент ли он в этой группе или преподаватель
-        $isStudent = $group->students()->where('user_id', $user->id)->exists();
+        $isStudent = $group->students()->where('student_id', $user->id)->exists();
         $isTeacher = $group->teacher && $group->teacher->user_id === $user->id;
         
         if (!$isStudent && !$isTeacher) {
-            return response()->json(['error' => 'Access denied'], 403);
+            return response()->json([
+                'success' => false,
+                'error' => 'Access denied'
+            ], 403);
         }
         
         $request->validate([
             'message' => 'required|string|max:1000'
         ]);
         
-        // Сохраняем сообщение
+        // ✅ Сохраняем сообщение без broadcast
         $message = GroupMessage::create([
             'group_id' => $groupId,
             'user_id' => $user->id,
@@ -64,9 +66,6 @@ class ChatController extends Controller
         ]);
         
         $message->load('user');
-        
-        // Отправляем через WebSocket
-        broadcast(new GroupChatEvent($message));
         
         return response()->json([
             'success' => true,
@@ -81,16 +80,20 @@ class ChatController extends Controller
         ]);
     }
 
-    public function showHistoryGroup ($groupId, Request $request) {
+    public function showHistoryGroup($groupId, Request $request)
+    {
         $user = $request->user();
         
         // Проверка доступа
         $group = Group::findOrFail($groupId);
-        $isStudent = $group->students()->where('user_id', $user->id)->exists();
+        $isStudent = $group->students()->where('student_id', $user->id)->exists();
         $isTeacher = $group->teacher && $group->teacher->user_id === $user->id;
         
         if (!$isStudent && !$isTeacher) {
-            return response()->json(['error' => 'Access denied'], 403);
+            return response()->json([
+                'success' => false,
+                'error' => 'Access denied'
+            ], 403);
         }
         
         $messages = GroupMessage::with('user')

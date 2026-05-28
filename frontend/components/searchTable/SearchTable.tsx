@@ -127,6 +127,15 @@ export default function SearchTable({
         return 'task_id';
     }, [searchProps, filterField]);
 
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlSearchParam = urlParams.get('search');
+        if (urlSearchParam) {
+            const decodedSearch = decodeURIComponent(urlSearchParam);
+            setSearchParam(decodedSearch);
+        }
+    }, []);
+
     // Формирование filterOptions из данных
     const defaultFilterOptions = useMemo(() => {
         if (externalFilterOptions) {
@@ -543,8 +552,8 @@ export default function SearchTable({
                                         >
                                             {grade?.value && grade.value !== 'null' && grade.value !== '—' ? (
                                                 <span className={`font-medium ${grade.value === '5' ? 'text-green-600' :
-                                                        grade.value === '2' ? 'text-red-600' :
-                                                            'text-gray-700'
+                                                    grade.value === '2' ? 'text-red-600' :
+                                                        'text-gray-700'
                                                     }`}>
                                                     {grade.value}
                                                 </span>

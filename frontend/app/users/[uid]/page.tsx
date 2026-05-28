@@ -297,10 +297,10 @@ export default function UserPage() {
   }
 
   const statsCards = [
-    { label: 'Файлы', value: stats.files, icon: FileText, href: `/files?search=${userData.name} ${userData.surname}`, color: 'white' },
-    { label: 'Задания', value: stats.tasks, icon: BookOpen, href: `/tasks?search=${userData.name} ${userData.surname}`, color: 'from-green-500 to-green-600' },
-    { label: 'Ответы', value: stats.answers, icon: ClipboardCheck, href: `/answers?search=${userData.name} ${userData.surname}`, color: 'from-purple-500 to-purple-600' },
-    { label: 'Группы', value: stats.groups, icon: Users, href: `/groups?search=${userData.name} ${userData.surname}`, color: 'from-orange-500 to-orange-600' },
+    { label: 'Файлы', value: stats.files, icon: FileText,  color: 'white' },
+    { label: 'Задания', value: stats.tasks, icon: BookOpen, color: 'from-green-500 to-green-600' },
+    { label: 'Ответы', value: stats.answers, icon: ClipboardCheck, color: 'from-purple-500 to-purple-600' },
+    { label: 'Группы', value: stats.groups, icon: Users, color: 'from-orange-500 to-orange-600' },
   ];
 
   return (
@@ -401,7 +401,7 @@ export default function UserPage() {
               )}
 
               <h1 className="mt-4 text-xl sm:text-2xl font-bold text-gray-900">
-                {userData?.name} {userData?.surname}
+                {userData?.name}
               </h1>
 
               <p className="text-gray-600 mt-1 text-sm sm:text-base break-all px-2">{userData?.email}</p>
@@ -444,7 +444,7 @@ export default function UserPage() {
               return (
                 <Link
                   key={card.label}
-                  href={card.href}
+                  href={'/'}
                   className="group relative overflow-hidden rounded-2xl shadow-sm hover:shadow-md transition-all border border-gray-100 hover:border-main"
                 >
                   <div className="p-4 sm:p-6">

@@ -1,279 +1,632 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, Download, Maximize2, Minimize2 } from 'lucide-react';
-import { NEXT_PUBLIC_API_URL } from '@/lib/axios.config';
-
-const STORAGE_URL = `${NEXT_PUBLIC_API_URL}/storage/`;
-const API_URL = `${NEXT_PUBLIC_API_URL}/api`;
+import { useEffect, useState } from 'react';
+import axiosInstance from '@/lib/axios.config';
+import { useAuth } from '@/context/authContext';
+import ArchiveViewer from './ArchiveViewer';
+import { WordViewer, ExcelViewer, PowerPointViewer } from './OfficeViewer';
+import Loader from '../loader/Loader';
 
 interface FileViewerProps {
-  file: any;
+  fileData: {
+    id: number | string;
+    original_name: string;
+    mime_type: string;
+    size: number;
+    url?: string;
+    serve_url?: string;
+    file_type?: string;
+    content?: any; // Для файлов из архива
+    blob?: Blob;
+    is_temp?: boolean;
+    is_preview?: boolean;
+    from_archive?: boolean;
+    archive_id?: number;
+  };
   onClose: () => void;
-  onDownload?: (fileId: number, fileName: string) => void;
+  onFileOpen?: (file: any) => void; // Для открытия файлов из архива
 }
 
-export default function FileViewer({ file, onClose, onDownload }: FileViewerProps) {
-  const [isZoomed, setIsZoomed] = useState(false);
-  const [fileContent, setFileContent] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export default function FileViewer({ fileData, onClose, onFileOpen }: FileViewerProps) {
+  const [viewMode, setViewMode] = useState<'preview' | 'info'>('preview');
+  const [showArchive, setShowArchive] = useState(false);
+  const auth = useAuth();
 
-  // Для файлов из архива - они приходят как Blob
-  useEffect(() => {
-    if (file.content && (file.file_type === 'text' || file.mime_type?.startsWith('text/'))) {
-      // Если это текстовый файл из архива и он в виде Blob
-      if (file.content instanceof Blob) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          setFileContent(e.target?.result as string);
-        };
-        reader.readAsText(file.content);
-      } else if (typeof file.content === 'string') {
-        setFileContent(file.content);
+  if (!auth) return null;
+
+  const { token } = auth;
+
+  const fileType = fileData.file_type || getFileType(fileData.mime_type);
+
+  function getFileType(mimeType: string, fileName?: string): string {
+    // ✅ Сначала проверяем расширение файла
+    if (fileName) {
+      const ext = fileName.split('.').pop()?.toLowerCase() || '';
+
+      // Текстовые расширения
+      if (['txt', 'csv', 'json', 'xml', 'html', 'css', 'js', 'md', 'log'].includes(ext)) {
+        return 'text';
       }
+
+      // Другие типы
+      if (ext === 'zip' || ext === 'rar') return 'archive';
+      if (['doc', 'docx'].includes(ext)) return 'word';
+      if (['xls', 'xlsx'].includes(ext)) return 'excel';
+      if (['ppt', 'pptx'].includes(ext)) return 'presentation';
+      if (['pdf'].includes(ext)) return 'pdf';
+      if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext)) return 'image';
+      if (['mp4', 'avi', 'mov'].includes(ext)) return 'video';
+      if (['mp3', 'wav', 'ogg'].includes(ext)) return 'audio';
     }
-  }, [file]);
 
-  const getFileUrl = (path: string) => {
-    if (path.startsWith('blob:') || path.startsWith('data:')) {
-      return path;
+    // ✅ Затем проверяем MIME тип
+    if (!mimeType) return 'other';
+
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType.startsWith('video/')) return 'video';
+    if (mimeType.startsWith('audio/')) return 'audio';
+    if (mimeType === 'application/pdf') return 'pdf';
+    if (mimeType.includes('zip') || mimeType.includes('rar')) return 'archive';
+
+    // ✅ ВСЕ текстовые типы
+    if (mimeType.startsWith('text/') ||
+      mimeType.includes('json') ||
+      mimeType.includes('xml') ||
+      mimeType.includes('javascript') ||
+      mimeType.includes('csv')) {
+      return 'text';
     }
-    return `${STORAGE_URL}${path}`;
-  };
 
-  const getFileIcon = (mimeType: string) => {
-    if (mimeType?.includes('pdf')) return '📄';
-    if (mimeType?.includes('image')) return '🖼';
-    if (mimeType?.includes('word') || mimeType?.includes('document')) return '📝';
-    if (mimeType?.includes('excel') || mimeType?.includes('spreadsheet')) return '📊';
-    if (mimeType?.includes('text')) return '📃';
-    if (mimeType?.includes('zip')) return '📦';
-    return '📎';
-  };
+    if (mimeType.includes('word') || mimeType.includes('document')) return 'word';
+    if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'excel';
+    if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return 'presentation';
 
-  const downloadFile = async () => {
-    if (onDownload && file.id) {
-      onDownload(file.id, file.original_name);
-    } else if (file.content instanceof Blob) {
-      // Для файлов из архива
-      const url = URL.createObjectURL(file.content);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = file.original_name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-  };
+    return 'other';
+  }
 
-  const renderContent = () => {
-    // Изображения
-    if (file.file_type === 'image' || file.mime_type?.startsWith('image/')) {
-      let imageUrl;
-      if (file.content instanceof Blob) {
-        imageUrl = URL.createObjectURL(file.content);
-      } else {
-        imageUrl = file.content || getFileUrl(file.path);
-      }
+  function formatSize(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  function getFileIcon(type: string): string {
+    const icons: Record<string, string> = {
+      image: '🖼️',
+      video: '🎬',
+      audio: '🎵',
+      pdf: '📄',
+      text: '📝',
+      excel: '📊',
+      presentation: '📽️',
+      word: '📃',
+      archive: '📦',
+      other: '📎',
+    };
+    return icons[type] || icons.other;
+  }
+
+  // Для файлов из архива используем blob URL
+  const serveUrl = fileData.content instanceof Blob
+    ? URL.createObjectURL(fileData.content)
+    : fileData.serve_url || `${process.env.NEXT_PUBLIC_API_URL}/api/files/serve/${fileData.id}`;
+
+  const downloadUrl = fileData.url ||
+    `${process.env.NEXT_PUBLIC_API_URL}/api/files/download/${fileData.id}`;
+
+  // Если это архив - показываем ArchiveViewer
+  if (fileType === 'archive' || fileData.mime_type?.includes('zip')) {
+    if (showArchive) {
       return (
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <img
-            src={imageUrl}
-            alt={file.original_name}
-            className={`max-w-full max-h-[80vh] object-contain transition-transform duration-300 ${
-              isZoomed ? 'scale-150 cursor-zoom-out' : 'cursor-zoom-in'
-            }`}
-            onClick={() => setIsZoomed(!isZoomed)}
-          />
-        </div>
-      );
-    }
-    
-    // PDF
-    if (file.file_type === 'pdf' || file.mime_type === 'application/pdf') {
-      let pdfUrl;
-      if (file.content instanceof Blob) {
-        pdfUrl = URL.createObjectURL(file.content);
-      } else {
-        pdfUrl = file.content || getFileUrl(file.path);
-      }
-      return (
-        <iframe
-          src={pdfUrl}
-          className="w-full h-[85vh] border-0 bg-white"
-          title={file.original_name}
+        <ArchiveViewer
+          archive={fileData}
+          onClose={() => {
+            setShowArchive(false);
+            onClose();
+          }}
+          onFileOpen={(file: any) => {
+            // ✅ Вызываем onFileOpen из пропсов
+            if (onFileOpen) {
+              onFileOpen(file);
+            } else {
+              console.log('File from archive (no handler):', file);
+            }
+          }}
+          onFileExtracted={(newFile) => {
+            console.log('File extracted:', newFile);
+          }}
         />
       );
     }
-    
-    // Текстовые файлы
-    if (file.file_type === 'text' || file.mime_type?.startsWith('text/')) {
-      let textContent = fileContent;
-      
-      if (!textContent && file.content && typeof file.content === 'string') {
-        textContent = file.content;
-      }
-      
-      if (!textContent && file.path) {
-        // Загружаем текстовый файл с сервера
-        fetchTextContent();
-        return (
-          <div className="flex items-center justify-center h-[60vh]">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-main mx-auto mb-4"></div>
-              <p className="text-gray-600">Загрузка содержимого...</p>
-            </div>
-          </div>
-        );
-      }
-      
-      return (
-        <div className="w-full max-w-6xl mx-auto bg-white rounded-lg shadow-xl overflow-hidden">
-          <div className="bg-gray-100 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-            <span className="text-sm text-gray-600 font-medium">{file.original_name}</span>
-            <div className="flex gap-2">
-              <button
-                onClick={downloadFile}
-                className="text-gray-600 hover:text-main transition-colors flex items-center gap-1 text-sm"
-              >
-                <Download size={16} />
-                Скачать
-              </button>
-            </div>
-          </div>
-          <div className="p-6 bg-gray-50 overflow-auto max-h-[70vh]">
-            <pre className="whitespace-pre-wrap font-mono text-sm text-gray-800 bg-white p-4 rounded-lg">
-              {textContent}
-            </pre>
-          </div>
-        </div>
-      );
-    }
-    
-    // Microsoft Office файлы (Word, Excel, PowerPoint) - используем Google Docs Viewer
-    if (['word', 'excel', 'powerpoint'].includes(file.file_type) || 
-        file.mime_type?.includes('word') || 
-        file.mime_type?.includes('excel') || 
-        file.mime_type?.includes('presentation')) {
-      
-      const fileUrl = file.content instanceof Blob 
-        ? URL.createObjectURL(file.content)
-        : file.content || getFileUrl(file.path);
-      
-      // Google Docs Viewer URL
-      const googleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(fileUrl)}&embedded=true`;
-      
-      return (
-        <div className="w-full h-full flex flex-col">
-          <div className="bg-gray-100 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-            <span className="text-sm text-gray-600 font-medium">{file.original_name}</span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => window.open(googleViewerUrl, '_blank')}
-                className="text-gray-600 hover:text-main transition-colors flex items-center gap-1 text-sm"
-              >
-                <Maximize2 size={16} />
-                Открыть в новой вкладке
-              </button>
-              <button
-                onClick={downloadFile}
-                className="text-gray-600 hover:text-main transition-colors flex items-center gap-1 text-sm"
-              >
-                <Download size={16} />
-                Скачать
-              </button>
-            </div>
-          </div>
-          <iframe
-            src={googleViewerUrl}
-            className="w-full flex-1 border-0"
-            title={file.original_name}
-          />
-        </div>
-      );
-    }
-    
-    // Другие типы
+
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-center p-8 bg-white rounded-lg shadow-xl max-w-2xl mx-auto">
-        <div className="text-8xl mb-6">
-          {getFileIcon(file.mime_type || file.file_type || '')}
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-4">
+            <button onClick={onClose} className="text-gray-600 hover:text-gray-900">
+              ← Назад
+            </button>
+            <h2 className="text-xl font-semibold">
+              📦 {fileData.original_name}
+            </h2>
+          </div>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setShowArchive(true)}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            >
+              Открыть архив
+            </button>
+            <a
+              href={downloadUrl}
+              download={fileData.original_name}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              Скачать
+            </a>
+          </div>
         </div>
-        <h3 className="text-2xl font-semibold mb-3 text-gray-900">
-          {file.original_name}
-        </h3>
-        <p className="text-gray-600 mb-6">
-          Этот тип файла нельзя просмотреть в браузере
-        </p>
-        <button
-          onClick={downloadFile}
-          className="px-6 py-3 bg-main text-white rounded-lg hover:bg-main-dark transition-colors flex items-center gap-2"
-        >
-          <Download size={18} />
-          Скачать файл
-        </button>
+
+        <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+          <div className="text-8xl mb-4">📦</div>
+          <p className="text-xl text-gray-600 mb-2">{fileData.original_name}</p>
+          <p className="text-gray-400 mb-6">Архив содержит несколько файлов</p>
+          <button
+            onClick={() => setShowArchive(true)}
+            className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+          >
+            Просмотреть содержимое
+          </button>
+        </div>
       </div>
     );
-  };
+  }
 
-  const fetchTextContent = async () => {
-    if (loading || !file.path) return;
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/files/download/${file.id}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      
-      if (!response.ok) throw new Error('Ошибка загрузки файла');
-      
-      const text = await response.text();
-      setFileContent(text);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  return (
+    <div className="max-w-6xl mx-auto">
+      {/* Хедер */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-4">
+          <button onClick={onClose} className="text-gray-600 hover:text-gray-900">
+            ← Назад
+          </button>
+          <h2 className="text-xl font-semibold">
+            {getFileIcon(fileType)} {fileData.original_name}
+          </h2>
+        </div>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => setViewMode('preview')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors
+              ${viewMode === 'preview'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+          >
+            Просмотр
+          </button>
+          <button
+            onClick={() => setViewMode('info')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors
+              ${viewMode === 'info'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+          >
+            Информация
+          </button>
+          <a
+            href={downloadUrl}
+            download={fileData.original_name}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+          >
+            Скачать
+          </a>
+        </div>
+      </div>
+
+      {/* Контент */}
+      <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+        {viewMode === 'preview' ? (
+          <div className="p-8">
+            <FilePreview fileData={fileData} fileType={fileType} serveUrl={serveUrl} token={token} />
+          </div>
+        ) : (
+          <div className="p-8">
+            <FileInfo fileData={fileData} formatSize={formatSize} downloadUrl={downloadUrl} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Компонент предпросмотра
+function FilePreview({ fileData, fileType, serveUrl, token }: any) {
+  console.log('🖼️ FilePreview:', { fileType, serveUrl, fileData });
+
+  const isServerFile = !fileData.is_temp && !fileData.is_preview && !fileData.from_archive;
+
+  return (
+    <div className="flex items-center justify-center min-h-[500px]">
+      {/* Изображения */}
+      {fileType === 'image' && (
+        <AuthenticatedImage src={serveUrl} alt={fileData.original_name} token={token} />
+      )}
+
+      {/* PDF */}
+      {fileType === 'pdf' && (
+        <iframe src={serveUrl} className="w-full h-[800px] rounded-lg shadow-md" />
+      )}
+
+      {/* ✅ ТЕКСТОВЫЕ ФАЙЛЫ - ИСПРАВЛЕНО */}
+      {fileType === 'text' && (
+        <TextPreview serveUrl={serveUrl} token={token} />
+      )}
+
+      {/* Word */}
+      {fileType === 'word' && isServerFile && (
+        <WordViewer fileId={fileData.id} token={token} />
+      )}
+
+      {/* Excel */}
+      {fileType === 'excel' && isServerFile && (
+        <ExcelViewer fileId={fileData.id} token={token} />
+      )}
+
+      {/* Presentation */}
+      {fileType === 'presentation' && isServerFile && (
+        <PowerPointViewer fileId={fileData.id} token={token} />
+      )}
+
+      {/* Видео */}
+      {fileType === 'video' && (
+        <video controls className="max-w-full max-h-[600px] rounded-lg shadow-md">
+          <source src={serveUrl} type={fileData.mime_type} />
+        </video>
+      )}
+
+      {/* Аудио */}
+      {fileType === 'audio' && (
+        <audio controls className="w-full max-w-2xl">
+          <source src={serveUrl} type={fileData.mime_type} />
+        </audio>
+      )}
+
+      {/* ✅ ДЛЯ ВСЕХ ОСТАЛЬНЫХ - пробуем текстовый просмотр */}
+      {fileType === 'other' && (
+        <OtherFilePreview fileData={fileData} serveUrl={serveUrl} token={token} />
+      )}
+    </div>
+  );
+}
+
+function OtherFilePreview({ fileData, serveUrl, token }: any) {
+  const [textContent, setTextContent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isText, setIsText] = useState(false);
+
+  useEffect(() => {
+    const checkFile = async () => {
+      try {
+        const response = await fetch(serveUrl, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+
+        const text = await response.text();
+
+        // Проверяем, похоже ли содержимое на текст
+        if (text.length > 0 && text.length < 1000000) {
+          // Проверяем что это не бинарный файл
+          const isBinary = /[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(text.substring(0, 1000));
+
+          if (!isBinary) {
+            setTextContent(text);
+            setIsText(true);
+            setLoading(false);
+            return;
+          }
+        }
+
+        setIsText(false);
+        setLoading(false);
+      } catch (err) {
+        console.error('Error checking file:', err);
+        setIsText(false);
+        setLoading(false);
+      }
+    };
+
+    checkFile();
+  }, [serveUrl, token]);
+
+  if (loading) {
+    return (
+      <Loader />
+    );
+  }
+
+  // Если удалось прочитать как текст - показываем
+  if (isText && textContent) {
+    return (
+      <pre className="w-full max-h-[600px] overflow-auto bg-gray-900 text-green-400 p-6 rounded-lg font-mono text-sm">
+        <code>{textContent}</code>
+      </pre>
+    );
+  }
+
+  // Иначе - предложение скачать
+  return (
+    <div className="text-center py-12">
+      <div className="text-6xl mb-4">📄</div>
+      <p className="text-xl text-gray-600 mb-2">{fileData.original_name}</p>
+      <p className="text-gray-400 mb-4">Предпросмотр недоступен для этого типа файла</p>
+      <button
+        onClick={() => downloadFile(serveUrl, fileData.original_name, token)}
+        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+      >
+        📥 Скачать файл
+      </button>
+    </div>
+  );
+}
+
+function AuthenticatedImage({ src, alt, token }: { src: string; alt: string; token?: string }) {
+  const [imageSrc, setImageSrc] = useState<string>('');
+  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadImage = async () => {
+      try {
+        // Если это Blob URL (из архива) - используем напрямую
+        if (src.startsWith('blob:') || src.startsWith('data:')) {
+          setImageSrc(src);
+          setLoading(false);
+          return;
+        }
+
+        // Для обычных URL - загружаем с токеном
+        const response = await fetch(src, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) throw new Error('Failed to load image');
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        setImageSrc(objectUrl);
+        setLoading(false);
+
+        // Очищаем object URL при размонтировании
+        return () => URL.revokeObjectURL(objectUrl);
+      } catch (err) {
+        console.error('Error loading image:', err);
+        setError(true);
+        setLoading(false);
+      }
+    };
+
+    loadImage();
+  }, [src, token]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center text-gray-400 py-12">
+        <div className="text-6xl mb-4">🖼️</div>
+        <p>Ошибка загрузки изображения</p>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={imageSrc}
+      alt={alt}
+      className="max-w-full max-h-[600px] object-contain rounded-lg shadow-md"
+    />
+  );
+}
+
+// Компонент информации о файле
+function FileInfo({ fileData, formatSize, downloadUrl, token }: any) {
+  const [copied, setCopied] = useState(false);
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
-      <div className="relative w-full h-full flex flex-col">
-        {/* Кнопка закрытия */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-white text-2xl z-10 hover:text-gray-300 transition-colors rounded-full w-10 h-10 flex items-center justify-center bg-black/50"
-        >
-          ✕
-        </button>
+    <div className="space-y-6">
+      <div className="flex items-center justify-center text-8xl mb-8">
+        📄
+      </div>
 
-        {/* Информация о файле */}
-        <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-lg z-10">
-          <div className="text-white text-sm font-medium max-w-md truncate">{file.original_name}</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm text-gray-500">Имя файла</label>
+            <p className="text-lg font-medium text-gray-900">{fileData.original_name}</p>
+          </div>
+
+          <div>
+            <label className="text-sm text-gray-500">Тип файла</label>
+            <p className="text-lg font-medium text-gray-900">{fileData.mime_type}</p>
+          </div>
+
+          <div>
+            <label className="text-sm text-gray-500">Размер</label>
+            <p className="text-lg font-medium text-gray-900">
+              {formatSize(fileData.size)}
+            </p>
+          </div>
         </div>
 
-        {/* Контент файла */}
-        <div className="flex-1 flex items-center justify-center p-8 overflow-auto">
-          {error ? (
-            <div className="text-center text-white">
-              <p className="text-red-400 mb-4">{error}</p>
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm text-gray-500">ID файла</label>
+            <p className="text-lg font-medium text-gray-900">{fileData.id}</p>
+          </div>
+
+          <div>
+            <label className="text-sm text-gray-500">Ссылка для скачивания</label>
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={downloadUrl}
+                readOnly
+                className="flex-1 px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm"
+              />
               <button
-                onClick={downloadFile}
-                className="px-6 py-2 bg-main text-white rounded-lg hover:bg-main-dark"
+                onClick={() => copyToClipboard(downloadUrl)}
+                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 
+                         transition-colors text-sm"
               >
-                Скачать файл
+                {copied ? '✓' : 'Копировать'}
               </button>
             </div>
-          ) : (
-            renderContent()
-          )}
+          </div>
+
+          <div>
+            <label className="text-sm text-gray-500">Ссылка для просмотра</label>
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={fileData.serve_url}
+                readOnly
+                className="flex-1 px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm"
+              />
+              <button
+                onClick={() => copyToClipboard(fileData.serve_url)}
+                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 
+                         transition-colors text-sm"
+              >
+                {copied ? '✓' : 'Копировать'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Вспомогательная функция для скачивания файла
+async function downloadFile(url: string, fileName: string, token?: string) {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  } catch (error) {
+    console.error('Error downloading file:', error);
+  }
+}
+
+function TextPreview({ serveUrl, token }: { serveUrl: string; token?: string }) {
+  const [content, setContent] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>('');
+
+  useEffect(() => {
+    const loadText = async () => {
+      console.log('📝 Loading text from:', serveUrl); // Отладка
+
+      try {
+        const response = await fetch(serveUrl, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'text/plain, */*',
+          },
+        });
+
+        console.log('📝 Response status:', response.status); // Отладка
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const text = await response.text();
+        console.log('📝 Text length:', text.length); // Отладка
+
+        setContent(text);
+        setLoading(false);
+      } catch (err: any) {
+        console.error('📝 Error loading text:', err);
+
+        // Пробуем через axios
+        try {
+          const axiosResponse = await axiosInstance.get(serveUrl, {
+            headers: { 'Authorization': `Bearer ${token}` },
+            responseType: 'text',
+          });
+          setContent(axiosResponse.data);
+          setLoading(false);
+        } catch (axiosErr) {
+          setError('Не удалось загрузить содержимое файла');
+          setLoading(false);
+        }
+      }
+    };
+
+    loadText();
+  }, [serveUrl, token]);
+
+  if (loading) {
+    return (
+      <Loader />
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-red-500 text-lg mb-2">❌ {error}</div>
+        <a
+          href={serveUrl}
+          download
+          className="text-blue-600 underline"
+        >
+          Скачать файл
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-h-[600px] overflow-auto bg-gray-900 text-green-400 p-6 rounded-lg">
+      <div className="flex items-center justify-between mb-2 text-gray-500 text-xs">
+        <span>Текстовый файл</span>
+        <span>{content.length} символов, {content.split('\n').length} строк</span>
+      </div>
+      <pre className="font-mono text-sm whitespace-pre-wrap">
+        <code>{content}</code>
+      </pre>
     </div>
   );
 }

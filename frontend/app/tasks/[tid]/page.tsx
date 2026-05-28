@@ -1,10 +1,11 @@
-'use client'
+// app/tasks/[tid]/page.tsx
+'use client';
 
 import MainLayout from "@/layouts/MainLayout";
 import { useAuth } from "@/context/authContext";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ChangeEvent, FormEvent, useEffect, useState, useCallback, useMemo } from "react";
+import { ChangeEvent, FormEvent, useEffect, useState, useCallback, useMemo, JSX } from "react";
 import JSZip from 'jszip';
 import FileViewer from "@/components/files/FileViewer";
 import ArchiveViewer from "@/components/files/ArchiveViewer";
@@ -12,44 +13,13 @@ import SearchTable, { SearchRecord } from "@/components/searchTable/SearchTable"
 import { NEXT_PUBLIC_API_URL } from "@/lib/axios.config";
 import axios from '@/lib/axios.config';
 
-// Импорты иконок из lucide-react
 import {
-  ArrowLeft,
-  Download,
-  Eye,
-  FileArchive,
-  FileImage,
-  FileText,
-  FileIcon,
-  File,
-  FileCheck,
-  FileX,
-  FolderArchive,
-  X,
-  RefreshCw,
-  Send,
-  MessageSquare,
-  Calendar,
-  User,
-  BookOpen,
-  CheckCircle,
-  AlertCircle,
-  Loader2,
-  Upload,
-  FilePlus,
-  Trash2,
-  Archive,
-  Image as ImageIcon,
-  FileCode,
-  FileSpreadsheet,
-  FileAudio,
-  FileVideo,
-  FileQuestion,
-  Star,
-  StarOff,
-  Clock,
-  ExternalLink,
-  ChevronRight
+  ArrowLeft, Download, Eye, FileArchive, FileImage, FileText,
+  FileIcon, File, FileCheck, FileX, FolderArchive, X, RefreshCw,
+  Send, MessageSquare, Calendar, User, BookOpen, CheckCircle,
+  AlertCircle, Loader2, Upload, FilePlus, Trash2, Archive,
+  Image as ImageIcon, FileCode, FileSpreadsheet, FileAudio,
+  FileVideo, FileQuestion, Star, StarOff, ExternalLink, ChevronRight
 } from 'lucide-react';
 
 // Типы
@@ -64,22 +34,17 @@ interface TaskInfo {
   fileUrl: string;
   fileType: string;
   fileName: string;
+  fileSize: number;
 }
 
 interface AnswerData {
   id: number;
   user_id: number;
   task_id: number;
-  answer_id: number | null;
   students_comment: string | null;
   mark: number | null;
   created_at: string;
-  updated_at: string;
-  user?: {
-    id: number;
-    name: string;
-    email?: string;
-  };
+  user?: { id: number; name: string; email?: string };
   file?: {
     id: number;
     original_name: string;
@@ -89,7 +54,7 @@ interface AnswerData {
   };
 }
 
-export default function BookingPage() {
+export default function TaskPage() {
   const params = useParams();
   const router = useRouter();
   const auth = useAuth();
@@ -101,14 +66,39 @@ export default function BookingPage() {
   const [alertMess, setAlertMess] = useState<{ content: any }>();
   const [task, setTask] = useState<TaskInfo | null>(null);
   const [answers, setAnswers] = useState<AnswerData[]>([]);
-  const [showArchiveViewer, setShowArchiveViewer] = useState(false);
-  const [archiveFile, setArchiveFile] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showFileViewer, setShowFileViewer] = useState(false);
-  const [viewingFile, setViewingFile] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Загрузка информации о задании и ответов
+  // Состояния для FileViewer
+  const [showFileViewer, setShowFileViewer] = useState(false);
+  const [viewingFile, setViewingFile] = useState<any>(null);
+  const [showArchiveViewer, setShowArchiveViewer] = useState(false);
+  const [archiveFileData, setArchiveFileData] = useState<any>(null);
+
+  // Получение правильного MIME типа
+  const getCorrectMimeType = (mimeType: string, fileName: string): string => {
+    const extension = fileName?.split('.').pop()?.toLowerCase() || '';
+
+    if (extension === 'zip' || extension === 'rar') return 'application/zip';
+
+    const mimeMap: Record<string, string> = {
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'doc': 'application/msword',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'xls': 'application/vnd.ms-excel',
+      'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'ppt': 'application/vnd.ms-powerpoint',
+      'pdf': 'application/pdf',
+      'txt': 'text/plain',
+      'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+      'png': 'image/png', 'gif': 'image/gif',
+      'mp4': 'video/mp4', 'mp3': 'audio/mpeg',
+    };
+
+    return mimeMap[extension] || mimeType;
+  };
+
+  // Загрузка информации о задании
   const getTaskInfo = useCallback(async (id: number) => {
     if (!get) return;
     setError(null);
@@ -118,13 +108,8 @@ export default function BookingPage() {
       const res = await get(`/get-task/${id}`);
       const data = res.data.data;
 
-      console.log(data)
+      if (!data) throw new Error('Задание не найдено');
 
-      if (!data) {
-        throw new Error('Задание не найдено');
-      }
-
-      // Устанавливаем данные задания
       const taskData: TaskInfo = {
         id: data.id,
         title: data.title,
@@ -136,25 +121,27 @@ export default function BookingPage() {
         fileUrl: data.file?.path || '',
         fileType: data.file?.mime_type || '',
         fileName: data.file?.original_name || '',
+        fileSize: data.file?.size || 0,
       };
 
       setTask(taskData);
 
-      // Устанавливаем ответы (если есть)
+      // Устанавливаем ответы
       if (data.answers && Array.isArray(data.answers)) {
         setAnswers(data.answers);
       } else {
         setAnswers([]);
       }
 
-      // Если файл - ZIP архив, подготавливаем для просмотра
-      if (data.file && (data.file.mime_type === 'application/zip' || data.file.original_name?.endsWith('.zip'))) {
-        setArchiveFile({
+      // Если ZIP архив - подготавливаем данные
+      if (data.file && (data.file.original_name?.endsWith('.zip') || data.file.mime_type === 'application/zip')) {
+        setArchiveFileData({
           id: data.file.id,
           original_name: data.file.original_name,
-          mime_type: data.file.mime_type,
-          size: data.file.size,
-          author_id: data.file.author_id
+          mime_type: 'application/zip',
+          size: data.file.size || 0,
+          url: `${NEXT_PUBLIC_API_URL}/storage/${data.file.path}`,
+          serve_url: `${NEXT_PUBLIC_API_URL}/api/files/serve/${data.file.id}`,
         });
       }
     } catch (error: any) {
@@ -165,92 +152,6 @@ export default function BookingPage() {
       setLoading(false);
     }
   }, [get]);
-
-  // Преобразование ответов в формат для SearchTable
-  const answerRecords = useMemo((): SearchRecord[] => {
-    if (!answers.length) return [];
-
-    return answers.map((item) => {
-      // Определяем статус и цвет оценки
-      let markClass = 'text-gray-400';
-      let markValue = '—';
-
-      if (item.mark !== null && item.mark !== undefined) {
-        markValue = item.mark.toString();
-        if (item.mark >= 4) {
-          markClass = 'text-green-600 font-bold';
-        } else if (item.mark >= 3) {
-          markClass = 'text-yellow-600 font-bold';
-        } else if (item.mark > 0) {
-          markClass = 'text-red-600 font-bold';
-        }
-      }
-
-      return {
-        id: item.id,
-        task_id: item.task_id,
-        columns: [
-          {
-            title: 'Ученик',
-            key: 'student_name',
-            data: {
-              value: item.user?.name || 'Неизвестно',
-              size: 2,
-              isFilter: true,
-              add: 'font-medium'
-            }
-          },
-          {
-            title: 'Дата сдачи',
-            key: 'created_at',
-            data: {
-              value: item.created_at ? new Date(item.created_at).toLocaleString('ru-RU') : '—',
-              size: 2,
-              isFilter: true,
-              add: 'text-gray-600 text-sm'
-            }
-          },
-          {
-            title: 'Комментарий',
-            key: 'comment',
-            data: {
-              value: item.students_comment || '—',
-              size: 3,
-              add: 'text-gray-700 max-w-[250px] truncate'
-            }
-          },
-          {
-            title: 'Файл ответа',
-            key: 'answer_file',
-            data: {
-              value: item.file?.original_name || '—',
-              size: 2,
-              add: item.file ? 'text-blue-600 cursor-pointer hover:underline' : 'text-gray-400'
-            }
-          },
-          {
-            title: 'Оценка',
-            key: 'mark',
-            data: {
-              value: markValue,
-              size: 1,
-              add: markClass,
-              tag: 'select'
-            }
-          },
-          {
-            title: '',
-            key: 'actions',
-            data: {
-              value: '→',
-              size: 0.5,
-              add: 'text-center'
-            }
-          }
-        ]
-      };
-    });
-  }, [answers]);
 
   // Показ уведомления
   const showAlert = (title: string, message: string, type: 'success' | 'error' = 'success') => {
@@ -267,21 +168,19 @@ export default function BookingPage() {
       </div>
     );
     setAlertMess({ content: alertContent });
+    setTimeout(() => setAlertMess(undefined), 5000);
   };
 
-  // Загрузка файла на сервер
+  // Загрузка файла
   const uploadFile = async (file: File, customFileName?: string): Promise<number> => {
     const formData = new FormData();
-    const fileName = customFileName || file.name;
-    formData.append('file', file, fileName);
+    formData.append('file', file, customFileName || file.name);
     formData.append('author_id', user?.id.toString() || '1');
 
     const response = await axios.post('/save-file', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      headers: { 'Content-Type': 'multipart/form-data' },
     });
-    
+
     return response.data.file_id;
   };
 
@@ -300,16 +199,14 @@ export default function BookingPage() {
         fileId = await uploadFile(selectedFiles[0], fileName);
       } else if (selectedFiles.length > 1) {
         const zip = new JSZip();
-
         for (const file of selectedFiles) {
           const arrayBuffer = await file.arrayBuffer();
           zip.file(file.name, arrayBuffer);
         }
 
-        const zipBlob:Blob = await zip.generateAsync({ type: 'blob' });
-        const zipFileName:string = `answer_${Date.now()}.zip`;
+        const zipBlob: Blob = await zip.generateAsync({ type: 'blob' });
+        const zipFileName = `answer_${Date.now()}.zip`;
         const zipFile = new File([zipBlob], zipFileName, { type: 'application/zip' });
-
         const fileName = prompt('Название для архива', zipFile.name) || zipFile.name;
         fileId = await uploadFile(zipFile, fileName);
       } else {
@@ -318,95 +215,42 @@ export default function BookingPage() {
 
       const form: any = event.target;
       const newData = {
-        task_id: task?.id,
+        task_id: task.id,
         answer_id: fileId,
-        user_id: user?.id,
+        user_id: user.id,
         students_comment: form.students_comment.value || null,
       };
 
-      const response = await post('/create-answer', newData);
+      await post('/create-answer', newData);
 
       form.reset();
       setSelectedFiles([]);
       setDisabled(false);
 
-      const filesCount = selectedFiles.length;
-      const message = filesCount > 1
-        ? `${filesCount} файлов упакованы в ZIP архив`
-        : 'Ответ успешно отправлен';
-
-      showAlert('Ответ успешно отправлен!', message, 'success');
-
-      // Обновляем данные задания и ответов
+      showAlert('Ответ успешно отправлен!', 'Ответ отправлен', 'success');
       await getTaskInfo(task.id);
     } catch (error: any) {
-      console.error('Ошибка при отправке ответа:', error);
       showAlert('Ошибка', error.response?.data?.message || error.message || 'Не удалось отправить ответ', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Обработка выбора файлов
+  // Обработчики файлов
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const filesArray = Array.from(e.target.files);
-      setSelectedFiles(filesArray);
+      setSelectedFiles(Array.from(e.target.files));
       setDisabled(false);
     }
   };
 
-  // Удаление файла
   const removeFile = (index: number) => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-    if (selectedFiles.length === 1) {
-      setDisabled(true);
-    }
-  };
-
-  // Получение иконки файла
-  const getFileIcon = (mimeType: string, fileName?: string) => {
-    const extension = fileName?.split('.').pop()?.toLowerCase();
-    
-    if (mimeType?.includes('pdf')) return <File className="w-5 h-5 text-red-500" />;
-    if (mimeType?.includes('image')) return <ImageIcon className="w-5 h-5 text-purple-500" />;
-    if (mimeType?.includes('word') || extension === 'doc' || extension === 'docx') return <FileText className="w-5 h-5 text-blue-500" />;
-    if (mimeType?.includes('excel') || extension === 'xls' || extension === 'xlsx') return <FileSpreadsheet className="w-5 h-5 text-green-500" />;
-    if (mimeType?.includes('zip') || extension === 'zip' || extension === 'rar') return <FileArchive className="w-5 h-5 text-yellow-500" />;
-    if (mimeType?.includes('text') || extension === 'txt') return <FileCode className="w-5 h-5 text-gray-500" />;
-    if (mimeType?.includes('audio')) return <FileAudio className="w-5 h-5 text-indigo-500" />;
-    if (mimeType?.includes('video')) return <FileVideo className="w-5 h-5 text-pink-500" />;
-    
-    return <FileIcon className="w-5 h-5 text-gray-400" />;
-  };
-
-  // Получение большой иконки файла
-  const getLargeFileIcon = (mimeType: string, fileName?: string) => {
-    const extension = fileName?.split('.').pop()?.toLowerCase();
-    
-    if (mimeType?.includes('pdf')) return <File className="w-20 h-20 text-red-500" />;
-    if (mimeType?.includes('image')) return <ImageIcon className="w-20 h-20 text-purple-500" />;
-    if (mimeType?.includes('word') || extension === 'doc' || extension === 'docx') return <FileText className="w-20 h-20 text-blue-500" />;
-    if (mimeType?.includes('excel') || extension === 'xls' || extension === 'xlsx') return <FileSpreadsheet className="w-20 h-20 text-green-500" />;
-    if (mimeType?.includes('zip') || extension === 'zip' || extension === 'rar') return <FolderArchive className="w-20 h-20 text-yellow-500" />;
-    if (mimeType?.includes('text') || extension === 'txt') return <FileCode className="w-20 h-20 text-gray-500" />;
-    
-    return <FileQuestion className="w-20 h-20 text-gray-400" />;
-  };
-
-  // Получение URL файла
-  const getFileUrl = (filePath: string) => {
-    return `${NEXT_PUBLIC_API_URL}/storage/${filePath}`;
+    if (selectedFiles.length === 1) setDisabled(true);
   };
 
   // Скачивание файла
   const downloadFile = async (fileId: number, fileName: string) => {
-    const newFileName = prompt(`Под каким именем сохранить? \n по умолчанию: (${fileName})`);
-
-    if (newFileName === null) return;
-
-    const finalFileName = newFileName || fileName;
-
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/files/download/${fileId}`, {
@@ -420,573 +264,426 @@ export default function BookingPage() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = finalFileName;
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      showAlert('Файл успешно сохранен!', `Файл сохранен под именем: ${finalFileName}`, 'success');
+      showAlert('Файл сохранен!', fileName, 'success');
     } catch (error: any) {
-      console.error('Error downloading file:', error);
       showAlert('Ошибка', error.message, 'error');
     }
   };
 
-  // Переход к ответу
-  const navigateToAnswer = (answerId: number) => {
-    router.push(`/answers/${answerId}`);
-  };
+  // Открытие файла в просмотрщике
+  const openFileViewer = (file: any) => {
+    const extension = file.original_name?.split('.').pop()?.toLowerCase() || '';
 
-  // Просмотр файла задания
-  const handleViewTaskFile = () => {
-    if (!task?.fileId) return;
+    const viewerData = {
+      id: file.id,
+      original_name: file.original_name,
+      mime_type: getCorrectMimeType(file.mime_type, file.original_name),
+      size: file.size || 0,
+      url: file.path ? `${NEXT_PUBLIC_API_URL}/storage/${file.path}` : file.url,
+      serve_url: `${NEXT_PUBLIC_API_URL}/api/files/${file.id}/serve`,
+      file_type: getFileTypeByExtension(file.original_name, file.mime_type),
+    };
 
-    setViewingFile({
-      id: task.fileId,
-      original_name: task.fileName,
-      path: task.fileUrl,
-      mime_type: task.fileType,
-    });
+    console.log('📂 Viewer data:', viewerData);
+
+    setViewingFile(viewerData);
     setShowFileViewer(true);
   };
 
-  // Просмотр файла ответа
-  const handleViewAnswerFile = (answer: AnswerData) => {
-    if (!answer.file) return;
+  // ✅ Функция определения типа по имени файла и MIME
+  function getFileTypeByExtension(fileName: string, mimeType: string): string {
+    const extension = fileName?.split('.').pop()?.toLowerCase() || '';
 
-    setViewingFile({
-      id: answer.file.id,
-      original_name: answer.file.original_name,
-      path: answer.file.path,
-      mime_type: answer.file.mime_type,
-      size: answer.file.size
-    });
-    setShowFileViewer(true);
-  };
-
-  // Действия для таблицы ответов
-  const answerActions = useMemo(() => [
-    {
-      label: 'Скачать',
-      icon: <Download className="w-4 h-4" />,
-      onClick: (record: SearchRecord) => {
-        const answer = answers.find(a => a.id === record.id);
-        if (answer?.file?.id && answer?.file?.original_name) {
-          downloadFile(answer.file.id, answer.file.original_name);
-        } else {
-          showAlert('Внимание', 'Файл не прикреплен к ответу', 'error');
-        }
-      },
-      className: 'bg-blue-500 text-white hover:bg-blue-600 px-3 py-1.5 rounded-lg text-sm flex items-center gap-1',
-      getLabel: (record: SearchRecord) => {
-        const answer = answers.find(a => a.id === record.id);
-        return answer?.file ? 'Скачать файл' : 'Нет файла';
-      }
-    },
-    {
-      label: 'Просмотр',
-      icon: <Eye className="w-4 h-4" />,
-      onClick: (record: SearchRecord) => {
-        const answer = answers.find(a => a.id === record.id);
-        if (answer?.file) {
-          handleViewAnswerFile(answer);
-        } else {
-          showAlert('Внимание', 'Нет файла для просмотра', 'error');
-        }
-      },
-      className: 'bg-green-500 text-white hover:bg-green-600 px-3 py-1.5 rounded-lg text-sm flex items-center gap-1',
-      getLabel: (record: SearchRecord) => {
-        const answer = answers.find(a => a.id === record.id);
-        return answer?.file ? 'Просмотр' : 'Нет файла';
-      }
-    },
-    {
-      label: 'Перейти',
-      icon: <ExternalLink className="w-4 h-4" />,
-      onClick: (record: SearchRecord) => {
-        if (record.id) {
-          navigateToAnswer(Number(record.id));
-        }
-      },
-      className: 'bg-purple-500 text-white hover:bg-purple-600 px-3 py-1.5 rounded-lg text-sm flex items-center gap-1',
-      getLabel: () => 'Перейти к ответу'
+    // Сначала проверяем расширение
+    if (['txt', 'csv', 'json', 'xml', 'html', 'css', 'js', 'md', 'log'].includes(extension)) {
+      return 'text';
     }
-  ], [answers]);
 
-  function getAnswersCountText(count: number): string {
-    if (count % 10 === 1 && count % 100 !== 11) return 'ответ';
-    if (count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20)) return 'ответа';
-    return 'ответов';
+    if (['zip', 'rar'].includes(extension)) return 'archive';
+    if (['doc', 'docx'].includes(extension)) return 'word';
+    if (['xls', 'xlsx'].includes(extension)) return 'excel';
+    if (['ppt', 'pptx'].includes(extension)) return 'presentation';
+    if (['pdf'].includes(extension)) return 'pdf';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(extension)) return 'image';
+    if (['mp4', 'avi', 'mov'].includes(extension)) return 'video';
+    if (['mp3', 'wav', 'ogg'].includes(extension)) return 'audio';
+
+    // Затем MIME тип
+    if (mimeType?.startsWith('text/')) return 'text';
+    if (mimeType?.startsWith('image/')) return 'image';
+    if (mimeType?.startsWith('video/')) return 'video';
+    if (mimeType?.startsWith('audio/')) return 'audio';
+    if (mimeType === 'application/pdf') return 'pdf';
+    if (mimeType?.includes('zip') || mimeType?.includes('rar')) return 'archive';
+    if (mimeType?.includes('word') || mimeType?.includes('document')) return 'word';
+    if (mimeType?.includes('excel') || mimeType?.includes('spreadsheet')) return 'excel';
+    if (mimeType?.includes('powerpoint') || mimeType?.includes('presentation')) return 'presentation';
+
+    return 'other';
   }
 
-  // Кастомные рендереры для таблицы
-  const customRenderers = useMemo(() => ({
-    answer_file: (value: string, record: SearchRecord) => {
-      const answer = answers.find(a => a.id === record.id);
-      if (answer?.file && value !== '—') {
-        return (
-          <button
-            onClick={() => handleViewAnswerFile(answer)}
-            className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
-          >
-            {getFileIcon(answer.file.mime_type, answer.file.original_name)}
-            <span className="truncate max-w-[200px]">{value}</span>
-          </button>
-        );
+  // Обработчик файлов из архива
+  const handleFileFromArchive = (file: any) => {
+    setViewingFile({
+      ...file,
+      file_type: file.file_type || getFileTypeByExtension(file.original_name, file.mime_type),
+    });
+    setShowFileViewer(true);
+  };
+
+  // Иконки
+  const getSmallFileIcon = (mimeType: string, fileName?: string) => {
+    const type = getFileTypeByExtension(fileName || '', mimeType);
+    const icons: Record<string, JSX.Element> = {
+      archive: <FileArchive className="w-5 h-5 text-yellow-500" />,
+      image: <ImageIcon className="w-5 h-5 text-purple-500" />,
+      pdf: <File className="w-5 h-5 text-red-500" />,
+      word: <FileText className="w-5 h-5 text-blue-500" />,
+      excel: <FileSpreadsheet className="w-5 h-5 text-green-500" />,
+      presentation: <FileSpreadsheet className="w-5 h-5 text-orange-500" />,
+      text: <FileCode className="w-5 h-5 text-gray-500" />,
+      video: <FileVideo className="w-5 h-5 text-pink-500" />,
+      audio: <FileAudio className="w-5 h-5 text-indigo-500" />,
+    };
+    return icons[type] || <FileIcon className="w-5 h-5 text-gray-400" />;
+  };
+
+  // Таблица ответов
+  const answerRecords = useMemo((): SearchRecord[] => {
+    return answers.map(item => {
+      let markValue = '—';
+      let markClass = 'text-gray-400';
+
+      if (item.mark !== null && item.mark !== undefined) {
+        markValue = item.mark.toString();
+        if (item.mark >= 4) markClass = 'text-green-600 font-bold';
+        else if (item.mark >= 3) markClass = 'text-yellow-600 font-bold';
+        else markClass = 'text-red-600 font-bold';
       }
-      return <span className="text-gray-400 flex items-center gap-1"><FileX className="w-4 h-4" /> {value}</span>;
-    },
-    mark: (value: string, record: SearchRecord) => {
-      const answer = answers.find(a => a.id === record.id);
-      const mark = answer?.mark;
-      
-      if (mark && mark > 0) {
-        return (
-          <div className="flex items-center gap-1">
-            {mark >= 4 ? <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" /> : <StarOff className="w-4 h-4 text-gray-400" />}
-            <span className={mark >= 4 ? 'text-green-600 font-bold' : mark >= 3 ? 'text-yellow-600 font-bold' : 'text-red-600 font-bold'}>
-              {mark}
-            </span>
-          </div>
-        );
-      }
-      return <span className="text-gray-400">—</span>;
-    },
-    actions: (value: string, record: SearchRecord) => {
-      return (
-        <button
-          onClick={() => navigateToAnswer(Number(record.id))}
-          className="text-main hover:text-main-dark transition-colors p-1 rounded-full hover:bg-gray-100"
-          title="Перейти к ответу"
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      );
-    }
-  }), [answers]);
+
+      return {
+        id: item.id,
+        task_id: item.task_id,
+        columns: [
+          {
+            title: 'Ученик', key: 'student_name',
+            data: { value: item.user?.name || 'Неизвестно', size: 2, isFilter: true, add: 'font-medium' }
+          },
+          {
+            title: 'Дата сдачи', key: 'created_at',
+            data: { value: item.created_at ? new Date(item.created_at).toLocaleString('ru-RU') : '—', size: 2, isFilter: true }
+          },
+          {
+            title: 'Комментарий', key: 'comment',
+            data: { value: item.students_comment || '—', size: 3, add: 'text-gray-700 max-w-[250px] truncate' }
+          },
+          {
+            title: 'Файл ответа', key: 'answer_file',
+            data: { value: item.file?.original_name || '—', size: 2, add: item.file ? 'text-blue-600 cursor-pointer hover:underline' : 'text-gray-400' }
+          },
+          {
+            title: 'Оценка', key: 'mark',
+            data: { value: markValue, size: 1, add: markClass }
+          },
+          {
+            title: '', key: 'actions',
+            data: { value: '→', size: 0.5, add: 'text-center' }
+          }
+        ]
+      };
+    });
+  }, [answers]);
 
   useEffect(() => {
     if (authLoading) return;
-
-    if (!user) {
-      router.push('/login');
-      return;
-    }
-
+    if (!user) { router.push('/login'); return; }
     getTaskInfo(Number(params?.tid));
   }, [user, authLoading, params?.tid, getTaskInfo]);
 
   if (authLoading || loading) {
     return (
       <MainLayout>
-        <div className="h-170 flex flex-col items-center justify-center">
+        <div className="h-screen flex flex-col items-center justify-center">
           <Loader2 className="w-12 h-12 text-main animate-spin mb-4" />
-          <div className="text-lg">Загрузка...</div>
+          <div className="text-lg text-gray-500">Загрузка...</div>
         </div>
       </MainLayout>
     );
   }
 
-  if (!user) return null;
+  if (!user || !task) return null;
 
-  if (error && !task) {
-    return (
-      <MainLayout alertMess={alertMess?.content}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
-            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-red-800 mb-2">Ошибка загрузки</h2>
-            <p className="text-red-600 mb-4">{error}</p>
-            <button
-              onClick={() => router.push('/tasks')}
-              className="px-6 py-2 bg-main text-white rounded-lg hover:bg-main-dark transition-colors flex items-center gap-2 mx-auto"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Вернуться к списку заданий
-            </button>
-          </div>
-        </div>
-      </MainLayout>
-    );
-  }
-
-  if (!task) return null;
-
-  const isZipFile = task?.fileType === 'application/zip' || task?.fileName?.endsWith('.zip');
+  const isZipFile = task.fileName?.endsWith('.zip') || task.fileType === 'application/zip';
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
 
   return (
     <MainLayout alertMess={alertMess?.content}>
-      {/* File Viewer Modal */}
+      {/* FileViewer Modal */}
       {showFileViewer && viewingFile && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg w-[90vw] h-[90vh] flex flex-col">
-            <div className="border-b p-4 flex justify-between items-center">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                {getFileIcon(viewingFile.mime_type, viewingFile.original_name)}
-                {viewingFile.original_name}
-              </h3>
-              <button
-                onClick={() => setShowFileViewer(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto p-4">
-              {viewingFile.mime_type?.startsWith('image/') && viewingFile.path && (
-                <img
-                  src={getFileUrl(viewingFile.path)}
-                  alt={viewingFile.original_name}
-                  className="max-w-full max-h-full object-contain mx-auto"
-                />
-              )}
-              {viewingFile.mime_type === 'application/pdf' && viewingFile.path && (
-                <iframe
-                  src={getFileUrl(viewingFile.path)}
-                  className="w-full h-full"
-                  title={viewingFile.original_name}
-                />
-              )}
-              {(viewingFile.mime_type?.includes('text') || viewingFile.mime_type?.includes('word')) && (
-                <FileViewer
-                  file={viewingFile}
-                  onClose={() => setShowFileViewer(false)}
-                  onDownload={downloadFile}
-                />
-              )}
-              {!viewingFile.mime_type?.startsWith('image/') && 
-               viewingFile.mime_type !== 'application/pdf' && 
-               !viewingFile.mime_type?.includes('text') && 
-               !viewingFile.mime_type?.includes('word') && (
-                <div className="text-center p-8">
-                  {getLargeFileIcon(viewingFile.mime_type, viewingFile.original_name)}
-                  <p className="mt-4 text-gray-600">Невозможно просмотреть этот тип файла</p>
-                  <button
-                    onClick={() => downloadFile(viewingFile.id, viewingFile.original_name)}
-                    className="mt-4 px-4 py-2 bg-main text-white rounded-lg flex items-center gap-2 mx-auto"
-                  >
-                    <Download className="w-4 h-4" />
-                    Скачать файл
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+        <div className="fixed inset-0 z-50 bg-white">
+          <FileViewer
+            fileData={viewingFile}
+            onClose={() => {
+              setShowFileViewer(false);
+              setViewingFile(null);
+            }}
+            onFileOpen={handleFileFromArchive}
+          />
         </div>
       )}
 
-      {/* Archive Viewer */}
-      {showArchiveViewer && archiveFile && (
+      {/* ArchiveViewer Modal */}
+      {showArchiveViewer && archiveFileData && (
         <ArchiveViewer
-          archive={archiveFile}
+          archive={archiveFileData}
           onClose={() => setShowArchiveViewer(false)}
-          onFileOpen={(file) => {
-            setViewingFile(file);
-            setShowFileViewer(true);
+          onFileOpen={handleFileFromArchive}
+          onFileExtracted={(newFile) => {
+            showAlert('Файл извлечен', newFile.original_name, 'success');
           }}
         />
       )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-4 mb-8">
-          <button
-            onClick={() => router.push('/tasks')}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-6 h-6 text-gray-600" />
-          </button>
-          <h2 className="text-4xl font-bold">
-            {task?.title}
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-          {/* Левая колонка - контент задания */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-md overflow-hidden sticky top-4">
-              <div className="min-h-[400px] bg-gray-50">
-                {isZipFile ? (
-                  <div className="flex flex-col items-center justify-center h-[400px] text-center p-6">
-                    <FolderArchive className="w-20 h-20 text-yellow-500 mb-4" />
-                    <h3 className="text-xl font-semibold mb-2">ZIP архив</h3>
-                    <p className="text-gray-600 text-sm mb-4">{task?.fileName}</p>
-                    <p className="text-gray-600 text-sm mb-4">Этот архив содержит вложенные файлы</p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setShowArchiveViewer(true)}
-                        className="px-4 py-2 bg-main text-white rounded-lg hover:bg-main-dark transition-colors flex items-center gap-2 text-sm"
-                      >
-                        <FolderArchive className="w-4 h-4" />
-                        Просмотреть
-                      </button>
-                      <button
-                        onClick={() => downloadFile(task?.fileId || 0, task?.fileName || '')}
-                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 text-sm"
-                      >
-                        <Download className="w-4 h-4" />
-                        Скачать
-                      </button>
-                    </div>
-                  </div>
-                ) : task?.fileType?.startsWith('image/') ? (
-                  <div
-                    className="flex items-center justify-center h-[400px] p-4 cursor-pointer"
-                    onClick={handleViewTaskFile}
-                  >
-                    <img
-                      src={getFileUrl(task?.fileUrl || '')}
-                      alt={task?.fileName}
-                      className="max-w-full max-h-full object-contain"
-                    />
-                  </div>
-                ) : task?.fileType === 'application/pdf' ? (
-                  <iframe
-                    src={getFileUrl(task?.fileUrl || '')}
-                    className="w-full h-[400px] border-0"
-                    title={task?.fileName}
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-[400px] text-center p-6">
-                    {getLargeFileIcon(task?.fileType, task?.fileName)}
-                    <h3 className="text-xl font-semibold mb-2 mt-4">{task?.fileName}</h3>
-                    <p className="text-gray-600 text-sm mb-4">Нажмите для просмотра или скачайте файл</p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleViewTaskFile}
-                        className="px-4 py-2 bg-main text-white rounded-lg hover:bg-main-dark transition-colors flex items-center gap-2 text-sm"
-                      >
-                        <Eye className="w-4 h-4" />
-                        Просмотреть
-                      </button>
-                      <button
-                        onClick={() => downloadFile(task?.fileId || 0, task?.fileName || '')}
-                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 text-sm"
-                      >
-                        <Download className="w-4 h-4" />
-                        Скачать
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {/* Header */}
+          <div className="flex items-center gap-4 mb-8">
+            <button onClick={() => router.push('/tasks')} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <ArrowLeft className="w-6 h-6 text-gray-600" />
+            </button>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{task.title}</h1>
+              <p className="text-gray-500 text-sm mt-1">
+                {task.teacher} • Срок: {new Date(task.deadline).toLocaleString('ru-RU')}
+              </p>
             </div>
           </div>
 
-          {/* Правая колонка - информация и форма отправки */}
-          <div className="lg:col-span-3">
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <div className="mb-6">
-                <h3 className="text-xl font-semibold text-gray-900 mb-4 pb-3 border-b border-gray-200 flex items-center gap-2">
-                  <BookOpen className="w-5 h-5 text-main" />
-                  Информация о задании
-                </h3>
-
-                <div className="space-y-3">
-                  <div className="flex">
-                    <div className="flex items-start gap-2 w-24">
-                      <User className="w-4 h-4 text-gray-400 mt-0.5" />
-                      <span className="text-sm text-gray-500">Учитель:</span>
-                    </div>
-                    <Link
-                      href={`/users/${task?.teacherId}`}
-                      className="text-main hover:text-main-dark font-medium"
-                    >
-                      {task?.teacher}
-                    </Link>
-                  </div>
-
-                  <div className="flex">
-                    <div className="flex items-start gap-2 w-24">
-                      <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
-                      <span className="text-sm text-gray-500">Срок:</span>
-                    </div>
-                    <div className={`font-medium ${Date.parse(task?.deadline) <= Date.now() ? 'text-red-600' : 'text-gray-900'}`}>
-                      {new Date(task?.deadline).toLocaleString('ru-RU')}
-                    </div>
-                  </div>
-
-                  <div className="flex">
-                    <div className="flex items-start gap-2 w-24">
-                      <MessageSquare className="w-4 h-4 text-gray-400 mt-0.5" />
-                      <span className="text-sm text-gray-500">Описание:</span>
-                    </div>
-                    <p className="text-gray-700 leading-relaxed flex-1">
-                      {task?.description || 'Нет описания'}
-                    </p>
-                  </div>
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            {/* Левая колонка - файл задания */}
+            <div className="lg:col-span-2">
+              <div className="bg-white rounded-xl shadow-lg overflow-hidden sticky top-4">
+                <div className="bg-main px-4 sm:px-6 py-3">
+                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                    <BookOpen className="w-5 h-5" />
+                    Файл задания
+                  </h3>
                 </div>
-              </div>
 
-              <div className="border-t border-gray-200 pt-6">
-                <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <Send className="w-5 h-5 text-main" />
-                  Отправить ответ
-                </h3>
-
-                <form className="space-y-5" onSubmit={setAnswer}>
-                  <div>
-                    <label htmlFor="students_comment" className="block text-sm font-medium text-gray-700 mb-2">
-                      Комментарий
-                    </label>
-                    <textarea
-                      id="students_comment"
-                      name="students_comment"
-                      rows={4}
-                      placeholder="Введите комментарий к ответу..."
-                      className="w-full px-4 py-3 h-20 border border-gray-300 rounded-lg focus:ring-2 focus:ring-main focus:border-transparent outline-none transition resize-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Файл(ы) с ответом <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex items-center justify-center w-full">
-                      <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
-                        <div className="flex flex-col items-center justify-center pt-4 pb-4">
-                          <Upload className="w-6 h-6 text-gray-400 mb-1" />
-                          <p className="mb-1 text-xs text-gray-500">
-                            <span className="font-semibold">Нажмите для загрузки</span> или перетащите файлы
-                          </p>
-                          <p className="text-xs text-gray-500">Можно выбрать несколько файлов (будут упакованы в ZIP)</p>
-                        </div>
-                        <input
-                          type="file"
-                          name="file"
-                          multiple
-                          required
-                          className="hidden"
-                          onChange={handleFileChange}
+                <div className="min-h-[400px] bg-gray-50 flex items-center justify-center p-6">
+                  {task.fileId ? (
+                    <div className="text-center w-full">
+                      {/* Превью для изображений */}
+                      {task.fileType?.startsWith('image/') ? (
+                        <img
+                          src={`${NEXT_PUBLIC_API_URL}/storage/${task.fileUrl}`}
+                          alt={task.fileName}
+                          className="max-w-full max-h-[350px] object-contain mx-auto rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => openFileViewer({ id: task.fileId, original_name: task.fileName, mime_type: task.fileType, path: task.fileUrl, size: task.fileSize })}
                         />
-                      </label>
+                      ) : (
+                        <div className="flex flex-col items-center">
+                          <div className="text-6xl mb-4">
+                            {isZipFile ? '📦' : task.fileType?.includes('pdf') ? '📕' : '📄'}
+                          </div>
+                          <h3 className="text-lg font-semibold mb-1">{task.fileName}</h3>
+                          <p className="text-sm text-gray-500 mb-4">
+                            {isZipFile ? 'ZIP архив' : task.fileType}
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2 justify-center">
+                        {isZipFile ? (
+                          <button
+                            onClick={() => setShowArchiveViewer(true)}
+                            className="px-4 py-2 bg-main text-white rounded-lg hover:bg-main-dark transition-colors flex items-center gap-2 text-sm"
+                          >
+                            <FolderArchive className="w-4 h-4" />
+                            Открыть архив
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => openFileViewer({ id: task.fileId, original_name: task.fileName, mime_type: task.fileType, path: task.fileUrl, size: task.fileSize })}
+                            className="px-4 py-2 bg-main text-white rounded-lg hover:bg-main-dark transition-colors flex items-center gap-2 text-sm"
+                          >
+                            <Eye className="w-4 h-4" />
+                            Просмотреть
+                          </button>
+                        )}
+                        <button
+                          onClick={() => downloadFile(task.fileId, task.fileName)}
+                          className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 text-sm"
+                        >
+                          <Download className="w-4 h-4" />
+                          Скачать
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center text-gray-400">
+                      <FileQuestion className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                      <p>Файл не прикреплен</p>
+                    </div>
+                  )}
+                </div>
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-main" />
+                  Описание задания
+                </h3>
+                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                  {task.description || 'Нет описания'}
+                </p>
+              </div>
+              </div>
+              
+            </div>
+
+            {/* Правая колонка - информация и форма */}
+            <div className="lg:col-span-3 space-y-6">
+              {/* Описание */}
+              
+
+              {/* Форма отправки (для учеников) */}
+              {!isTeacher && (
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Send className="w-5 h-5 text-main" />
+                    Отправить ответ
+                  </h3>
+
+                  <form className="space-y-5" onSubmit={setAnswer}>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Комментарий</label>
+                      <textarea
+                        id="students_comment"
+                        name="students_comment"
+                        rows={4}
+                        placeholder="Введите комментарий к ответу..."
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-main focus:border-transparent outline-none transition resize-none"
+                      />
                     </div>
 
-                    {selectedFiles.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        <p className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                          <FilePlus className="w-4 h-4 text-main" />
-                          Выбрано файлов: {selectedFiles.length}
-                          {selectedFiles.length > 1 && (
-                            <span className="ml-2 text-main flex items-center gap-1">
-                              <Archive className="w-3 h-3" />
-                              (будут упакованы в ZIP архив)
-                            </span>
-                          )}
-                        </p>
-                        <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2 bg-gray-50">
-                          {selectedFiles.map((file, index) => (
-                            <div key={index} className="flex items-center justify-between py-1 px-2 hover:bg-white rounded">
-                              <span className="text-sm text-gray-600 truncate flex-1 flex items-center gap-2">
-                                {getFileIcon(file.type, file.name)}
-                                {file.name} ({(file.size / 1024).toFixed(2)} KB)
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => removeFile(index)}
-                                className="text-red-500 hover:text-red-700"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ))}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Файл(ы) с ответом <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex items-center justify-center w-full">
+                        <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
+                          <div className="flex flex-col items-center justify-center pt-4 pb-4">
+                            <Upload className="w-6 h-6 text-gray-400 mb-1" />
+                            <p className="mb-1 text-xs text-gray-500">
+                              <span className="font-semibold">Нажмите для загрузки</span> или перетащите
+                            </p>
+                            <p className="text-xs text-gray-500">Несколько файлов будут упакованы в ZIP</p>
+                          </div>
+                          <input type="file" name="file" multiple required className="hidden" onChange={handleFileChange} />
+                        </label>
+                      </div>
+
+                      {selectedFiles.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          <p className="text-sm font-medium text-gray-700">
+                            Выбрано: {selectedFiles.length} файл(ов)
+                            {selectedFiles.length > 1 && <span className="text-main ml-1">(→ ZIP архив)</span>}
+                          </p>
+                          <div className="max-h-32 overflow-y-auto border rounded-lg p-2 bg-gray-50">
+                            {selectedFiles.map((file, index) => (
+                              <div key={index} className="flex items-center justify-between py-1 px-2 hover:bg-white rounded">
+                                <span className="text-sm text-gray-600 truncate flex-1 flex items-center gap-2">
+                                  {getSmallFileIcon(file.type, file.name)}
+                                  {file.name} ({(file.size / 1024).toFixed(1)} KB)
+                                </span>
+                                <button type="button" onClick={() => removeFile(index)} className="text-red-500 hover:text-red-700">
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
                         </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={disabled || submitting}
+                      className="w-full py-3 bg-main text-white rounded-lg hover:bg-main-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {submitting ? (
+                        <><Loader2 className="w-5 h-5 animate-spin" /> Отправка...</>
+                      ) : (
+                        <><Send className="w-5 h-5" /> Отправить ответ</>
+                      )}
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              {/* Таблица ответов (для учителя) */}
+              {isTeacher && (
+                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                  <div className="bg-main px-4 sm:px-6 py-3 flex justify-between items-center">
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                      <FileCheck className="w-5 h-5" />
+                      Ответы учеников ({answers.length})
+                    </h3>
+                    <button
+                      onClick={() => getTaskInfo(task.id)}
+                      className="px-3 py-1.5 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors flex items-center gap-1 text-sm"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Обновить
+                    </button>
+                  </div>
+                  <div className="p-4">
+                    {answers.length > 0 ? (
+                      <SearchTable
+                        searchProps={answerRecords}
+                        actions={[
+                          {
+                            label: 'Просмотр',
+                            icon: <Eye className="w-4 h-4" />,
+                            onClick: (record) => {
+                              const answer = answers.find(a => a.id === record.id);
+                              if (answer?.file) openFileViewer(answer.file);
+                              else showAlert('Внимание', 'Нет файла', 'error');
+                            },
+                            className: 'bg-green-500 text-white hover:bg-green-600 px-3 py-1.5 rounded-lg text-sm',
+                            getLabel: (record) => {
+                              const answer = answers.find(a => a.id === record.id);
+                              return answer?.file ? 'Просмотр' : 'Нет файла';
+                            }
+                          },
+                          {
+                            label: 'Перейти',
+                            icon: <ExternalLink className="w-4 h-4" />,
+                            onClick: (record) => router.push(`/answers/${record.id}`),
+                            className: 'bg-purple-500 text-white hover:bg-purple-600 px-3 py-1.5 rounded-lg text-sm',
+                            getLabel: () => 'К ответу'
+                          }
+                        ]}
+                        compactView={true}
+                        onRowClick={(record) => router.push(`/answers/${record.id}`)}
+                      />
+                    ) : (
+                      <div className="text-center py-12 text-gray-400">
+                        <FileQuestion className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                        <p>Нет ответов</p>
                       </div>
                     )}
                   </div>
-
-                  <button
-                    type="submit"
-                    disabled={disabled || submitting}
-                    className="w-full py-3 bg-main text-white rounded-lg hover:bg-main-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {submitting ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Отправка...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-5 h-5" />
-                        Отправить ответ
-                      </>
-                    )}
-                  </button>
-                </form>
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
-
-        {/* Таблица ответов - показываем только учителям */}
-        {isTeacher && (
-          <div className="mt-12">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                  <FileCheck className="w-6 h-6 text-main" />
-                  Ответы учеников
-                  {answers.length > 0 && (
-                    <span className="ml-3 text-sm font-normal text-gray-500">
-                      ({answers.length} {getAnswersCountText(answers.length)})
-                    </span>
-                  )}
-                </h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  Нажмите на файл для просмотра, используйте кнопки действий или нажмите на стрелку для перехода к ответу
-                </p>
-              </div>
-              <button
-                onClick={() => getTaskInfo(task.id)}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Обновить
-              </button>
-            </div>
-
-            {answers.length > 0 ? (
-              <SearchTable
-                searchProps={answerRecords}
-                actions={answerActions}
-                customRenderers={customRenderers}
-                compactView={true}
-                studentNameField="Ученик"
-                gradeField="Оценка"
-                onRowClick={(record) => navigateToAnswer(Number(record.id))}
-              />
-            ) : (
-              <div className="bg-white rounded-lg shadow-md p-12 text-center">
-                <FileQuestion className="w-20 h-20 text-gray-400 mx-auto mb-4" />
-                <h4 className="text-xl font-semibold text-gray-700 mb-2">Нет ответов</h4>
-                <p className="text-gray-500">
-                  Пока ни один ученик не отправил ответ на это задание
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Информация для ученика об уже отправленных ответах */}
-        {!isTeacher && answers.some(a => a.user_id === user?.id) && (
-          <div className="mt-12 bg-blue-50 border border-blue-200 rounded-lg p-6">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="w-8 h-8 text-blue-500" />
-              <div>
-                <h3 className="text-lg font-semibold text-blue-900">Ваш ответ отправлен</h3>
-                <p className="text-blue-700">
-                  Вы уже отправили ответ на это задание.
-                  {answers.find(a => a.user_id === user?.id)?.mark !== null && (
-                    <span className="block mt-1">
-                      Оценка: <strong>{answers.find(a => a.user_id === user?.id)?.mark}</strong>
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </MainLayout>
   );

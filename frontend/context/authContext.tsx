@@ -18,6 +18,7 @@ interface RegisterData {
 }
 
 interface AuthContextType {
+    token?: string
     user: any | null;
     loading: boolean;
     register: (userData: RegisterData) => Promise<{ success: boolean; message?: string; data?: any }>;
@@ -63,6 +64,7 @@ const parseLaravelError = (error: any): string => {
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [user, setUser] = useState(null);
+    const [token, setToken] = useState<string>();
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
@@ -72,10 +74,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const checkUser = async () => {
         try {
-            const token = localStorage.getItem('token');
-            if (token) {
+            const tokenAuth = localStorage.getItem('token');
+            if (tokenAuth) {
                 const response = await axios.get('/user');
                 setUser(response.data);
+                setToken(tokenAuth)
             }
         } catch (error) {
             localStorage.removeItem('token');
@@ -194,6 +197,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
+
     const value = {
         user,
         loading,
@@ -203,6 +207,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         checkUser,
         post,
         get,
+        token
     };
 
     return (

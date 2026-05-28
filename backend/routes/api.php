@@ -1,10 +1,8 @@
 <?php
 
-use App\Events\ChatMessageEvent;
-use App\Events\GroupChatEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\TestController;
+// use App\Http\Controllers\TestController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\ChatController;
@@ -13,8 +11,7 @@ use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\OrganizationController;
-use App\Models\Group;
-use App\Models\GroupMessage;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -60,10 +57,13 @@ Route::middleware('api')->group(function () {
         Route::get('/get-file/{id}', [FileController::class, 'fileInfo']);
         Route::get('/files/download/{id}', [FileController::class, 'loadFile']);
         Route::delete('/delete-file/{id}', [FileController::class, 'deleteFile']);
-        Route::get('/get-file-content/{id}', [FileController::class, 'getFileContent']);
-        Route::post('/save-file-content', [FileController::class, 'saveFileContent']);
-        
         Route::get('/get-archive-contents/{id}', [FileController::class, 'getArchiveContents']);
+
+        Route::post('/save-file-from-url', [FileController::class, 'saveFileFromUrl']);
+        Route::get('/files/{id}/serve', [FileController::class, 'serveFile']);
+        Route::post('/extract-file', [FileController::class, 'extractFile']);
+
+        Route::get('/get-office-content/{id}', [FileController::class, 'getOfficeFileContent']);
 
         Route::get('/get-groups', [GroupController::class, 'allGroups']);
         Route::post('/create-group', [GroupController::class, 'createGroup']);

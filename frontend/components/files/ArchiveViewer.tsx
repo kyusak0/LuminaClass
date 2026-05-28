@@ -179,48 +179,93 @@ export default function ArchiveViewer({ archive, onClose, onFileOpen, onFileExtr
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            console.log('token:' +token)
-            const response = await fetch(`http://localhost:8001/api/files/download/${archive.id}`, {
+
+            // 1. Сначала проверяем, что это действительно архив
+            const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/files/download/${archive.id}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
+                    'Accept': 'application/zip,application/octet-stream,*/*',
                 }
             });
 
-            if (!response.ok) throw new Error('Failed to download archive');
-
-            const blob = await response.blob();
-            setArchiveBlob(blob);
-            const zip = await JSZip.loadAsync(blob);
-
-            const archiveFiles = [];
-
-            for (const [filename, zipEntry] of Object.entries(zip.files)) {
-                if (zipEntry.dir) continue;
-
-                const extension = filename.split('.').pop()?.toLowerCase() || '';
-                const fileType = getFileTypeFromExtension(extension);
-
-                archiveFiles.push({
-                    name: filename,
-                    type: fileType,
-                    extension: extension,
-                    zipEntry: zipEntry
-                });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            // Сортируем файлы по имени
-            archiveFiles.sort((a, b) => a.name.localeCompare(b.name));
-            setFiles(archiveFiles);
-        } catch (error) {
+            // 2. Получаем blob и проверяем его тип
+            const blob = await response.blob();
+
+            // Проверяем, что blob не пустой
+            if (blob.size === 0) {
+                throw new Error('Получен пустой файл');
+            }
+
+            // 3. Проверяем MIME тип
+            const contentType = response.headers.get('content-type') || '';
+            console.log('Content-Type:', contentType);
+
+            // 4. Пробуем загрузить как ZIP
+            try {
+                const zip = await JSZip.loadAsync(blob, {
+                    // Добавляем опции для совместимости
+                    createFolders: false,
+                    checkCRC32: true,
+                });
+
+                setArchiveBlob(blob);
+                const archiveFiles: any[] = [];
+
+                zip.forEach((relativePath, zipEntry) => {
+                    if (zipEntry.dir) return;
+
+                    const extension = relativePath.split('.').pop()?.toLowerCase() || '';
+                    const fileType = getFileTypeFromExtension(extension);
+
+                    archiveFiles.push({
+                        name: relativePath,
+                        type: fileType,
+                        extension: extension,
+                        zipEntry: zipEntry
+                    });
+                });
+
+                archiveFiles.sort((a, b) => a.name.localeCompare(b.name));
+                setFiles(archiveFiles);
+
+                console.log(`✅ Архив успешно загружен, найдено ${archiveFiles.length} файлов`);
+
+            } catch (zipError: any) {
+                console.error('ZIP parsing error:', zipError);
+
+                // 5. Если не удалось открыть как ZIP, проверяем другие форматы
+                if (zipError.message.includes('end of central directory')) {
+                    // Пробуем как RAR или другой архивный формат
+                    alert('Этот формат архива не поддерживается. Пожалуйста, используйте ZIP формат.');
+                } else if (zipError.message.includes('Corrupted zip')) {
+                    alert('Архив поврежден или имеет неверный формат.');
+                } else {
+                    alert(`Ошибка чтения архива: ${zipError.message}`);
+                }
+
+                setFiles([]);
+            }
+
+        } catch (error: any) {
             console.error('Error loading archive:', error);
-            alert('Ошибка загрузки архива');
+
+            if (error.message.includes('404')) {
+                alert('Файл архива не найден на сервере');
+            } else if (error.message.includes('401') || error.message.includes('403')) {
+                alert('Ошибка авторизации при загрузке архива');
+            } else {
+                alert(`Ошибка загрузки архива: ${error.message}`);
+            }
+
+            setFiles([]);
         } finally {
             setLoading(false);
         }
     };
-
     const extractAndOpenFile = async (file: any) => {
         setExtractingId(file.name);
         try {

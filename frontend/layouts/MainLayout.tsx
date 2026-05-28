@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/authContext";
-import { Book, BotIcon, ChevronLeft, ChevronRight, Dock, Home, LogOut, Menu, Pencil, Tags, User } from "lucide-react";
+import { Book, BotIcon, ChartBar, ChevronLeft, ChevronRight, Dock, Home, LogOut, Menu, Pencil, Tags, User } from "lucide-react";
 import Alert from "@/components/alert/Alert";
 
 interface MainLayoutProps {
@@ -110,8 +110,12 @@ export default function MainLayout({ children, alertMess }: MainLayoutProps) {
                                 <Tags className="w-5 h-5" /> Задания
                             </NavLink>
 
-                            <NavLink href="/editor" currentPath={clientPathname} isSidebarOpen={isSidebarOpen}>
-                                <Pencil className="w-5 h-5" /> Редактор
+                            <NavLink href="/file-manager" currentPath={clientPathname} isSidebarOpen={isSidebarOpen}>
+                                <Pencil className="w-5 h-5" /> Файлы
+                            </NavLink>
+
+                            <NavLink href="/chat" currentPath={clientPathname} isSidebarOpen={isSidebarOpen}>
+                                <ChartBar className="w-5 h-5" /> Чат
                             </NavLink>
 
                             <NavLink href="/marks" currentPath={clientPathname} isSidebarOpen={isSidebarOpen}>

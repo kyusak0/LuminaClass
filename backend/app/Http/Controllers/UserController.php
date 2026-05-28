@@ -279,18 +279,6 @@ class UserController extends Controller
         ];
         
         $user->update($data);
-        
-        $this->logAction(
-            'Редактирование данных пользователя',
-            'PUT',
-            Auth::user()->id,
-            $request->ip(),
-            [
-                'edited_user_id' => $user->id,
-                'changes' => $oldData,
-                'new_login' => $data['login']
-            ]
-        );
 
         return response()->json(['message' => 'user updated successfully', 'user' => $user]);
     }
@@ -310,36 +298,12 @@ class UserController extends Controller
             
             $token = $user->createToken('auth-token')->plainTextToken;
             
-            $this->logAction(
-                'Авторизация',
-                'POST',
-                $user->id,
-                $request->ip(),
-                [
-                    'login' => $request->login,
-                    'success' => true
-                ]
-            );
-            
             return response()->json([
                 'user' => $user,
                 'token' => $token,
                 'message' => 'Успешная авторизация'
             ]);
         }
-
-        // Логируем неудачную попытку входа
-        $this->logAction(
-            'Авторизация',
-            'POST',
-            null,
-            $request->ip(),
-            [
-                'login' => $request->login,
-                'success' => false,
-                'error' => 'Неверные учетные данные'
-            ]
-        );
 
         throw ValidationException::withMessages([
             'login' => ['Неверные учетные данные'],

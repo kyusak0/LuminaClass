@@ -29,7 +29,6 @@ class GroupChatEvent implements ShouldBroadcastNow
 
     public function broadcastOn(): Channel
     {
-        // Приватный канал для группы (только участники)
         return new Channel("group.{$this->messageData['group_id']}.chat");
     }
 

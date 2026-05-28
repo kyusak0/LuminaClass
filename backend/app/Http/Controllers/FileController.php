@@ -5,13 +5,17 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
-use PhpOffice\PhpPresentation\IOFactory as PresentationIOFactory;
-use PhpOffice\PhpPresentation\Shape\RichText;
 use PhpOffice\PhpWord\IOFactory as WordIOFactory;
 use PhpOffice\PhpWord\Element\TextRun;
+use PhpOffice\PhpWord\Element\Title;
+use PhpOffice\PhpWord\Element\ListItem;
+use PhpOffice\PhpWord\Element\Table as WordTable;
+use PhpOffice\PhpWord\Element\Image as WordImage;
+use PhpOffice\PhpWord\Element\PageBreak;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 use App\Models\File;
-use App\Models\Log as ActionLog; // Добавляем модель для логирования действий
+use App\Models\Log as ActionLog;
 
 class FileController extends Controller
 {
@@ -39,23 +43,47 @@ class FileController extends Controller
         ]);
         
         $uploadedFile = $request->file('file');
-
-        $existingFile = File::where('original_name', $uploadedFile->getClientOriginalName())
-                        ->where('size', $uploadedFile->getSize())
-                        ->where('author_id', $request->author_id)
-                        ->first();
+        
+        $extension = strtolower($uploadedFile->getClientOriginalExtension());
+        $mimeType = $uploadedFile->getMimeType();
+        
+        // Исправляем MIME тип для архивов
+        if ($extension === 'zip' || $extension === 'rar') {
+            $mimeType = 'application/zip';
+        }
+        
+        // Исправляем для офисных файлов, если сервер неправильно определил
+        $mimeMap = [
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'doc' => 'application/msword',
+            'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'xls' => 'application/vnd.ms-excel',
+            'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'ppt' => 'application/vnd.ms-powerpoint',
+            'pdf' => 'application/pdf',
+            'txt' => 'text/plain',
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'mp4' => 'video/mp4',
+        ];
+        
+        if (isset($mimeMap[$extension]) && $mimeType !== $mimeMap[$extension]) {
+            // Используем правильный MIME тип на основе расширения
+            $mimeType = $mimeMap[$extension];
+        }
 
         $path = $uploadedFile->store('uploads', 'public');
 
         $file = new File();
         $file->original_name = $uploadedFile->getClientOriginalName();
         $file->path = $path;
-        $file->mime_type = $uploadedFile->getMimeType();
+        $file->mime_type = $mimeType; // ✅ Правильный MIME тип
         $file->size = $uploadedFile->getSize();
         $file->author_id = $request->author_id;
         $file->save();
         
-        // Логируем загрузку файла
         $this->logAction(
             'Загрузка файла',
             'POST',
@@ -70,46 +98,84 @@ class FileController extends Controller
         );
         
         return response()->json([
+            'success' => true,
             'message' => 'Файл успешно загружен',
-            'file_id' => $file->id,
-            'url' => Storage::url($path)
+            'file' => [
+                'id' => $file->id,
+                'original_name' => $file->original_name,
+                'mime_type' => $file->mime_type,
+                'size' => $file->size,
+                'url' => Storage::url($path),
+                'serve_url' => url('/api/files/serve/' . $file->id)
+            ]
         ], 200, [], JSON_UNESCAPED_UNICODE);
-        
     }
 
-    public function show() {
-        $files = File::all();
+    public function show() 
+    {
+        $files = File::with('user')->orderBy('created_at', 'desc')->get();
+        
+        $files->transform(function ($file) {
+            $file->url = Storage::url($file->path);
+            $file->serve_url = url('/api/files/serve/' . $file->id);
+            $file->file_type = $this->getFileType(pathinfo($file->original_name, PATHINFO_EXTENSION));
+            return $file;
+        });
+        
         return response()->json([
+            'success' => true,
             'data' => $files,
         ]);
     }
 
-    public function fileInfo($id){
-        $file = File::with(['user'])->findOrFail($id);
+    public function fileInfo($id)
+    {
+        $file = File::with('user')->findOrFail($id);
+        
+        $file->url = Storage::url($file->path);
+        $file->serve_url = url('/api/files/serve/' . $file->id);
+        $file->file_type = $this->getFileType(pathinfo($file->original_name, PATHINFO_EXTENSION));
+        
         return response()->json([
+            'success' => true,
             'data' => $file,
         ]);
     }
 
-    public function loadFile($id, Request $request){
+    public function serveFile($id)
+    {
         $file = File::findOrFail($id);
         
         $filePath = 'public/' . $file->path;
         
         if (!Storage::exists($filePath)) {
-            Log::warning('File not found in storage', [
-                'file_id' => $file->id,
-                'path' => $file->path,
-                'user_id' => auth()->id() ?? null,
-            ]);
-            
             return response()->json([
                 'success' => false,
                 'message' => 'Файл не найден в хранилище',
             ], 404);
         }
 
-        // Логируем скачивание файла
+        $fullPath = storage_path('app/' . $filePath);
+        
+        return response()->file($fullPath, [
+            'Content-Type' => $file->mime_type,
+            'Content-Disposition' => 'inline; filename="' . $file->original_name . '"',
+        ]);
+    }
+
+    public function loadFile($id, Request $request)
+    {
+        $file = File::findOrFail($id);
+        
+        $filePath = 'public/' . $file->path;
+        
+        if (!Storage::exists($filePath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Файл не найден в хранилище',
+            ], 404);
+        }
+
         $this->logAction(
             'Скачивание файла',
             'GET',
@@ -121,17 +187,16 @@ class FileController extends Controller
             ]
         );
 
-        // Скачиваем файл
         return Storage::download($filePath, $file->original_name, [
             'Content-Type' => $file->mime_type,
             'Content-Length' => $file->size,
         ]);
     }
 
-    public function deleteFile($id, Request $request) {
+    public function deleteFile($id, Request $request) 
+    {
         $file = File::findOrFail($id);
         
-        // Сохраняем данные файла для лога
         $fileData = [
             'file_id' => $file->id,
             'original_name' => $file->original_name,
@@ -144,9 +209,9 @@ class FileController extends Controller
         if (Storage::exists($filePath)) {
             Storage::delete($filePath);
         }
+        
         $file->delete();
         
-        // Логируем удаление файла
         $this->logAction(
             'Удаление файла',
             'DELETE',
@@ -156,211 +221,317 @@ class FileController extends Controller
         );
 
         return response()->json([
-            'message' => 'успешно удалено'
-        ]);
-    }
-
-    public function getArchiveContents($id, Request $request)
-    {
-        $file = File::findOrFail($id);
-        
-        // Проверка, что файл - архив
-        if (!in_array($file->mime_type, ['application/zip', 'application/x-rar-compressed'])) {
-            return response()->json([
-                'success' => false,
-                'message' => 'File is not an archive'
-            ], 400);
-        }
-        
-        // Логируем просмотр архива
-        $this->logAction(
-            'Просмотр содержимого архива',
-            'GET',
-            auth()->id(),
-            $request->ip(),
-            [
-                'file_id' => $file->id,
-                'file_name' => $file->original_name
-            ]
-        );
-        
-        // Здесь нужно реализовать чтение архива
-        return response()->json([
             'success' => true,
-            'files' => [
-                ['id' => 1, 'name' => 'example.txt', 'type' => 'text']
-            ]
+            'message' => 'Файл успешно удален'
         ]);
     }
 
-    public function extractFile(Request $request)
-    {
-        $request->validate([
-            'archive_id' => 'required|exists:files,id',
-            'file_id' => 'required'
-        ]);
-        
-        $archive = File::findOrFail($request->archive_id);
-        
-        // Логируем извлечение файла из архива
-        $this->logAction(
-            'Извлечение файла из архива',
-            'POST',
-            auth()->id(),
-            $request->ip(),
-            [
-                'archive_id' => $request->archive_id,
-                'archive_name' => $archive->original_name,
-                'extracted_file_id' => $request->file_id
-            ]
-        );
-    
-        return response()->json([
-            'success' => true,
-            'file' => [
-                'id' => uniqid(),
-                'original_name' => 'extracted_file.txt',
-                'file_type' => 'text',
-                'content' => 'Extracted content'
-            ]
-        ]);
-    }
-
-    public function getFileContent($id, Request $request)
+    /**
+     * Получение содержимого офисного файла для предпросмотра
+     */
+    public function getOfficeFileContent($id, Request $request)
     {
         $file = File::findOrFail($id);
         $extension = strtolower(pathinfo($file->original_name, PATHINFO_EXTENSION));
         
-        // Определяем тип файла
-        $fileType = $this->getFileType($extension);
+        $filePath = storage_path('app/public/' . $file->path);
         
-        // Проверяем есть ли сохраненный JSON контент
-        $jsonDir = storage_path('app/json');
-        $jsonPath = null;
-        
-        if ($fileType === 'powerpoint') {
-            $jsonPath = $jsonDir . '/presentation_' . $file->id . '.json';
-        } elseif ($fileType === 'excel') {
-            $jsonPath = $jsonDir . '/excel_' . $file->id . '.json';
-        } elseif (in_array($fileType, ['word', 'text'])) {
-            $jsonPath = $jsonDir . '/document_' . $file->id . '.json';
+        if (!file_exists($filePath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Файл не найден'
+            ], 404);
         }
         
-        // Если есть сохраненный JSON, возвращаем его
-        if ($jsonPath && file_exists($jsonPath)) {
-            $content = file_get_contents($jsonPath);
+        try {
+            $content = null;
+            $type = '';
             
-            // Для PowerPoint и Excel парсим JSON
-            if ($fileType === 'powerpoint' || $fileType === 'excel') {
-                $content = json_decode($content, true);
+            if (in_array($extension, ['docx'])) {
+                $content = $this->parseWordDocument($filePath);
+                $type = 'word';
             }
+            elseif (in_array($extension, ['doc'])) {
+                $content = '<p class="text-yellow-800">⚠️ Файлы .doc не поддерживаются. Конвертируйте в .docx</p>';
+                $type = 'word';
+            }
+            elseif (in_array($extension, ['xlsx', 'xls'])) {
+                $content = $this->parseExcelDocument($filePath);
+                $type = 'excel';
+            }
+            elseif (in_array($extension, ['pptx', 'ppt'])) {
+                $content = $this->parsePowerPointDocument($filePath);
+                $type = 'presentation';
+            }
+            else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Неподдерживаемый формат файла'
+                ], 400);
+            }
+            
+            $this->logAction(
+                'Просмотр содержимого офисного файла',
+                'GET',
+                auth()->id(),
+                $request->ip(),
+                [
+                    'file_id' => $file->id,
+                    'file_name' => $file->original_name,
+                    'file_type' => $type
+                ]
+            );
             
             return response()->json([
                 'success' => true,
                 'content' => $content,
-                'type' => $fileType
+                'type' => $type,
+                'file_name' => $file->original_name
             ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error parsing office file: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Ошибка при обработке файла'
+            ], 500);
         }
-        
-        // Если нет JSON, возвращаем пустой контент
-        $emptyContent = $this->getEmptyContent($extension, $file->original_name);
-        
-        return response()->json([
-            'success' => true,
-            'content' => $emptyContent,
-            'type' => $fileType
-        ]);
     }
 
-    public function saveFileContent(Request $request)
+    /**
+     * Парсинг Word документа в HTML
+     */
+    private function parseWordDocument($filePath)
     {
-        Log::info('Saving file content', [
-            'file_id' => $request->file_id,
-            'has_content' => !empty($request->content)
-        ]);
-        
-        $request->validate([
-            'file_id' => 'required|exists:files,id',
-            'content' => 'required'
-        ]);
-        
-        $file = File::findOrFail($request->file_id);
-        $extension = strtolower(pathinfo($file->original_name, PATHINFO_EXTENSION));
-        
-        // Сохраняем старую версию контента для лога (если существует)
-        $saveDir = storage_path('app/json');
-        $oldContent = null;
-        $oldFilePath = null;
-        
-        if (in_array($extension, ['ppt', 'pptx'])) {
-            $oldFilePath = $saveDir . '/presentation_' . $file->id . '.json';
-        } elseif (in_array($extension, ['xls', 'xlsx'])) {
-            $oldFilePath = $saveDir . '/excel_' . $file->id . '.json';
-        } else {
-            $oldFilePath = $saveDir . '/document_' . $file->id . '.json';
+        try {
+            $phpWord = WordIOFactory::load($filePath);
+            $html = '<div class="word-document">';
+            
+            foreach ($phpWord->getSections() as $section) {
+                foreach ($section->getElements() as $element) {
+                    $html .= $this->parseWordElement($element);
+                }
+            }
+            
+            $html .= '</div>';
+            
+            if (empty(strip_tags($html))) {
+                return '<p>Пустой документ</p>';
+            }
+            
+            return $html;
+            
+        } catch (\Exception $e) {
+            Log::error('Word parsing error: ' . $e->getMessage());
+            return '<p>Ошибка чтения документа</p>';
         }
+    }
+
+    /**
+     * Парсинг элемента Word
+     */
+    private function parseWordElement($element)
+    {
+        $html = '';
         
-        if ($oldFilePath && file_exists($oldFilePath)) {
-            $oldContent = file_get_contents($oldFilePath);
+        // Заголовки
+        if ($element instanceof Title) {
+            $depth = method_exists($element, 'getDepth') ? $element->getDepth() : 1;
+            $tag = 'h' . min($depth + 1, 6);
+            $text = htmlspecialchars($element->getText());
+            $html .= "<{$tag} style=\"font-weight: bold; margin: 10px 0; color: #1a1a1a;\">{$text}</{$tag}>";
         }
-        
-        // Создаем директорию для сохранения
-        if (!file_exists($saveDir)) {
-            mkdir($saveDir, 0777, true);
+        // Текстовые блоки
+        elseif ($element instanceof TextRun) {
+            $html .= '<p style="margin: 5px 0; line-height: 1.6;">';
+            foreach ($element->getElements() as $textElement) {
+                if (method_exists($textElement, 'getText')) {
+                    $text = htmlspecialchars($textElement->getText());
+                    
+                    $styles = [];
+                    if (method_exists($textElement, 'getFontStyle')) {
+                        $fontStyle = $textElement->getFontStyle();
+                        if ($fontStyle) {
+                            if ($fontStyle->isBold()) $styles[] = 'font-weight: bold';
+                            if ($fontStyle->isItalic()) $styles[] = 'font-style: italic';
+                            if ($fontStyle->getColor()) $styles[] = 'color: #' . $fontStyle->getColor();
+                        }
+                    }
+                    
+                    $styleAttr = !empty($styles) ? ' style="' . implode('; ', $styles) . '"' : '';
+                    $html .= "<span{$styleAttr}>{$text}</span>";
+                }
+            }
+            $html .= '</p>';
         }
-        
-        // Очищаем старые JSON файлы для этого файла
-        $oldFiles = glob($saveDir . "/*_{$file->id}.json");
-        foreach ($oldFiles as $oldFile) {
-            if (is_file($oldFile)) {
-                unlink($oldFile);
+        // Текст
+        elseif (method_exists($element, 'getText')) {
+            $text = htmlspecialchars($element->getText());
+            if (!empty(trim($text))) {
+                $html .= '<p style="margin: 5px 0;">' . $text . '</p>';
             }
         }
-        
-        $content = $request->content;
-        $savedFile = null;
-        
-        // Для PowerPoint
-        if (in_array($extension, ['ppt', 'pptx']) || $file->file_type === 'powerpoint') {
-            $savedFile = $saveDir . '/presentation_' . $file->id . '.json';
-            file_put_contents($savedFile, json_encode($content, JSON_UNESCAPED_UNICODE));
+        // Списки
+        elseif ($element instanceof ListItem) {
+            $text = htmlspecialchars($element->getText());
+            $html .= '<li style="margin: 5px 0 5px 20px;">' . $text . '</li>';
         }
-        // Для Excel
-        elseif (in_array($extension, ['xls', 'xlsx']) || $file->file_type === 'excel') {
-            $savedFile = $saveDir . '/excel_' . $file->id . '.json';
-            file_put_contents($savedFile, json_encode($content, JSON_UNESCAPED_UNICODE));
+        // Таблицы
+        elseif ($element instanceof WordTable) {
+            $html .= '<table style="border-collapse: collapse; width: 100%; margin: 10px 0;">';
+            foreach ($element->getRows() as $row) {
+                $html .= '<tr>';
+                foreach ($row->getCells() as $cell) {
+                    $html .= '<td style="border: 1px solid #ddd; padding: 8px;">';
+                    foreach ($cell->getElements() as $cellElement) {
+                        $html .= $this->parseWordElement($cellElement);
+                    }
+                    $html .= '</td>';
+                }
+                $html .= '</tr>';
+            }
+            $html .= '</table>';
         }
-        // Для Word и текстовых файлов
-        else {
-            $savedFile = $saveDir . '/document_' . $file->id . '.json';
-            $saveData = is_string($content) ? $content : json_encode($content);
-            file_put_contents($savedFile, $saveData);
+        // Изображения
+        elseif ($element instanceof WordImage) {
+            $imageData = base64_encode($element->getImageString());
+            $html .= '<img src="data:image/' . $element->getImageExtension() . ';base64,' . $imageData . '" style="max-width: 100%; margin: 10px 0;" />';
+        }
+        // Разрывы страниц
+        elseif ($element instanceof PageBreak) {
+            $html .= '<hr style="border: none; border-top: 2px dashed #ccc; margin: 20px 0;" />';
         }
         
-        // Логируем сохранение контента
-        $this->logAction(
-            'Сохранение содержимого файла',
-            'POST',
-            auth()->id(),
-            $request->ip(),
-            [
-                'file_id' => $file->id,
-                'file_name' => $file->original_name,
-                'file_type' => $this->getFileType($extension),
-                'had_previous_content' => !is_null($oldContent),
-                'content_size' => strlen(is_string($content) ? $content : json_encode($content))
-            ]
-        );
-        
-        Log::info('File saved', ['path' => $savedFile]);
-        
-        return response()->json([
-            'success' => true,
-            'message' => 'Content saved successfully',
-            'path' => $savedFile
-        ]);
+        return $html;
     }
-    
+
+    /**
+     * Парсинг Excel в HTML таблицу
+     */
+    private function parseExcelDocument($filePath)
+    {
+        try {
+            $spreadsheet = IOFactory::load($filePath);
+            $html = '<div style="overflow-x: auto;">';
+            
+            foreach ($spreadsheet->getAllSheets() as $sheetIndex => $sheet) {
+                if ($sheetIndex > 0) {
+                    $html .= '<hr style="margin: 20px 0;">';
+                }
+                
+                $html .= '<h3 style="margin-bottom: 10px; color: #1a73e8;">' . htmlspecialchars($sheet->getTitle()) . '</h3>';
+                $html .= '<table style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">';
+                
+                foreach ($sheet->getRowIterator() as $rowIndex => $row) {
+                    $html .= '<tr>';
+                    $cellIterator = $row->getCellIterator();
+                    $cellIterator->setIterateOnlyExistingCells(false);
+                    
+                    foreach ($cellIterator as $cell) {
+                        $value = $cell->getFormattedValue() ?? $cell->getValue() ?? '';
+                        $style = $rowIndex === 0 ? 'background: #f0f0f0; font-weight: bold;' : 'background: white;';
+                        
+                        // Проверяем стили ячейки
+                        try {
+                            $cellStyle = $cell->getStyle();
+                            if ($cellStyle->getFont()->getBold()) {
+                                $style .= ' font-weight: bold;';
+                            }
+                            $color = $cellStyle->getFont()->getColor();
+                            if ($color && $color->getRGB()) {
+                                $style .= ' color: #' . $color->getRGB() . ';';
+                            }
+                        } catch (\Exception $e) {}
+                        
+                        $html .= '<td style="border: 1px solid #ddd; padding: 8px 12px; ' . $style . '">' . htmlspecialchars($value) . '</td>';
+                    }
+                    $html .= '</tr>';
+                }
+                
+                $html .= '</table>';
+            }
+            
+            $html .= '</div>';
+            
+            return $html;
+            
+        } catch (\Exception $e) {
+            Log::error('Excel parsing error: ' . $e->getMessage());
+            return '<p>Ошибка чтения таблицы</p>';
+        }
+    }
+
+    /**
+     * Парсинг PowerPoint в HTML слайды
+     */
+    private function parsePowerPointDocument($filePath)
+    {
+        try {
+            // Для PowerPoint используем ZipArchive напрямую
+            $zip = new \ZipArchive();
+            
+            if ($zip->open($filePath) !== true) {
+                return '<p>Не удалось открыть файл презентации</p>';
+            }
+            
+            $slides = [];
+            
+            // Извлекаем текст из слайдов
+            for ($i = 1; $i <= 100; $i++) {
+                $slidePath = 'ppt/slides/slide' . $i . '.xml';
+                $slideXml = $zip->getFromName($slidePath);
+                
+                if ($slideXml === false) break;
+                
+                $xml = simplexml_load_string($slideXml);
+                $xml->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/drawingml/2006/main');
+                
+                $texts = $xml->xpath('//a:t');
+                $slideText = '';
+                
+                foreach ($texts as $text) {
+                    $slideText .= (string)$text . ' ';
+                }
+                
+                if (!empty(trim($slideText))) {
+                    $slides[] = [
+                        'number' => $i,
+                        'content' => trim($slideText)
+                    ];
+                }
+            }
+            
+            $zip->close();
+            
+            if (empty($slides)) {
+                return '<p>Презентация пуста</p>';
+            }
+            
+            // Создаем HTML для слайдов
+            $html = '<div class="presentation-slides" style="font-family: Arial, sans-serif;">';
+            
+            foreach ($slides as $index => $slide) {
+                $html .= sprintf(
+                    '<div style="margin-bottom: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <h3 style="color: #1a73e8; margin-bottom: 15px;">Слайд %d</h3>
+                        <div style="font-size: 16px; line-height: 1.8; white-space: pre-wrap;">%s</div>
+                    </div>',
+                    $slide['number'],
+                    htmlspecialchars($slide['content'])
+                );
+            }
+            
+            $html .= '</div>';
+            
+            return $html;
+            
+        } catch (\Exception $e) {
+            Log::error('PowerPoint parsing error: ' . $e->getMessage());
+            return '<p>Ошибка чтения презентации</p>';
+        }
+    }
+
     private function getFileType($extension)
     {
         $types = [
@@ -370,147 +541,16 @@ class FileController extends Controller
             'xls' => 'excel',
             'xlsx' => 'excel',
             'ppt' => 'powerpoint',
-            'pptx' => 'powerpoint'
+            'pptx' => 'powerpoint',
+            'pdf' => 'pdf',
+            'jpg' => 'image',
+            'jpeg' => 'image',
+            'png' => 'image',
+            'gif' => 'image',
+            'mp4' => 'video',
+            'zip' => 'archive',
         ];
         
-        return $types[$extension] ?? 'unknown';
-    }
-
-    private function parseFileContent($filePath, $extension)
-    {
-        switch ($extension) {
-            case 'txt':
-                $content = file_get_contents($filePath);
-                return nl2br(htmlspecialchars($content));
-                
-            case 'docx':
-                return $this->parseWordDocument($filePath);
-                
-            case 'doc':
-                return '<p>DOC file loaded. Please convert to DOCX for better editing.</p><p>' . htmlspecialchars(basename($filePath)) . '</p>';
-                
-            case 'xlsx':
-            case 'xls':
-                return $this->parseExcelDocument($filePath);
-                
-            case 'pptx':
-            case 'ppt':
-                return $this->parsePowerPointDocument($filePath);
-                
-            default:
-                return '<p>File loaded: ' . htmlspecialchars(basename($filePath)) . '</p>';
-        }
-    }
-
-    private function parseWordDocument($filePath)
-    {
-        try {
-            $phpWord = WordIOFactory::load($filePath);
-            $html = '';
-            
-            foreach ($phpWord->getSections() as $section) {
-                foreach ($section->getElements() as $element) {
-                    $html .= $this->parseWordElement($element);
-                }
-            }
-            
-            if (empty($html)) {
-                return '<p>Document: ' . htmlspecialchars(basename($filePath)) . '</p><p>Start editing your document...</p>';
-            }
-            
-            return $html;
-            
-        } catch (\Exception $e) {
-            \Log::error('Word parsing error: ' . $e->getMessage());
-            return '<p>Document: ' . htmlspecialchars(basename($filePath)) . '</p><p>Start editing your document...</p>';
-        }
-    }
-
-    private function parseWordElement($element)
-    {
-        $html = '';
-        
-        if (method_exists($element, 'getElements')) {
-            foreach ($element->getElements() as $child) {
-                $html .= $this->parseWordElement($child);
-            }
-        }
-        
-        if (method_exists($element, 'getText')) {
-            $text = htmlspecialchars($element->getText());
-            if (!empty($text)) {
-                $html .= '<p>' . $text . '</p>';
-            }
-        }
-        
-        if ($element instanceof \PhpOffice\PhpWord\Element\TextRun) {
-            $text = '';
-            foreach ($element->getElements() as $textElement) {
-                if (method_exists($textElement, 'getText')) {
-                    $text .= htmlspecialchars($textElement->getText());
-                }
-            }
-            if (!empty($text)) {
-                $html .= '<p>' . $text . '</p>';
-            }
-        }
-        
-        if ($element instanceof \PhpOffice\PhpWord\Element\Title) {
-            $text = htmlspecialchars($element->getText());
-            if (!empty($text)) {
-                $html .= '<h2>' . $text . '</h2>';
-            }
-        }
-        
-        if ($element instanceof \PhpOffice\PhpWord\Element\ListItem) {
-            $text = htmlspecialchars($element->getText());
-            if (!empty($text)) {
-                $html .= '<li>' . $text . '</li>';
-            }
-        }
-        
-        return $html;
-    }
-
-    private function getEmptyContent($extension, $fileName)
-    {
-        if (in_array($extension, ['ppt', 'pptx'])) {
-            return [
-                'slides' => [
-                    [
-                        'id' => (string)time(),
-                        'elements' => [
-                            [
-                                'id' => (string)time() . '_text',
-                                'type' => 'text',
-                                'content' => pathinfo($fileName, PATHINFO_FILENAME),
-                                'x' => 100,
-                                'y' => 200,
-                                'width' => 760,
-                                'height' => 100,
-                                'styles' => [
-                                    'fontSize' => 32,
-                                    'fontFamily' => 'Arial',
-                                    'color' => '#000000',
-                                    'textAlign' => 'center',
-                                    'bold' => true
-                                ]
-                            ]
-                        ],
-                        'background' => '#ffffff'
-                    ]
-                ]
-            ];
-        }
-        
-        if (in_array($extension, ['xls', 'xlsx'])) {
-            return [['', '', ''], ['', '', ''], ['', '', '']];
-        }
-        
-        if (in_array($extension, ['doc', 'docx'])) {
-            return '<p>' . htmlspecialchars(pathinfo($fileName, PATHINFO_FILENAME)) . '</p><p>Start editing your document...</p>';
-        }
-        
-        return '<p>' . htmlspecialchars($fileName) . '</p><p>Start editing your document...</p>';
+        return $types[strtolower($extension)] ?? 'unknown';
     }
 }
