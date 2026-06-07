@@ -38,7 +38,7 @@ class FileController extends Controller
     public function saveFile(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|max:2000000|mimes:jpg,jpeg,png,gif,pdf,mp4,doc,docx,ppt,pptx,xls,xlsx,txt,zip',
+            'file' => 'required|file|max:50000000|mimes:jpg,jpeg,png,gif,pdf,mp4,doc,docx,ppt,pptx,xls,xlsx,txt,zip',
             'author_id' => 'required|exists:users,id',
         ]);
         

@@ -372,7 +372,7 @@ export default function TaskPage() {
         task_id: item.task_id,
         columns: [
           {
-            title: 'Ученик', key: 'student_name',
+            title: 'Ученик', key: 'studentNameField',
             data: { value: item.user?.name || 'Неизвестно', size: 2, isFilter: true, add: 'font-medium' }
           },
           {
@@ -649,13 +649,13 @@ export default function TaskPage() {
                         actions={[
                           {
                             label: 'Просмотр',
-                            icon: <Eye className="w-4 h-4" />,
+                            icon: <Eye size={24} />,
                             onClick: (record) => {
                               const answer = answers.find(a => a.id === record.id);
                               if (answer?.file) openFileViewer(answer.file);
                               else showAlert('Внимание', 'Нет файла', 'error');
                             },
-                            className: 'bg-green-500 text-white hover:bg-green-600 px-3 py-1.5 rounded-lg text-sm',
+                            className: 'text-main',
                             getLabel: (record) => {
                               const answer = answers.find(a => a.id === record.id);
                               return answer?.file ? 'Просмотр' : 'Нет файла';
@@ -663,9 +663,9 @@ export default function TaskPage() {
                           },
                           {
                             label: 'Перейти',
-                            icon: <ExternalLink className="w-4 h-4" />,
+                            icon: <ExternalLink size={24}/>,
+                            className: 'text-main',
                             onClick: (record) => router.push(`/answers/${record.id}`),
-                            className: 'bg-purple-500 text-white hover:bg-purple-600 px-3 py-1.5 rounded-lg text-sm',
                             getLabel: () => 'К ответу'
                           }
                         ]}

@@ -80,8 +80,9 @@ class TaskController extends Controller
     }
 
     public function getAns($id){
-        $answer = Answer::with(['user', 'task', 'task.group', 'task.file', 'file'])->findOrFail($id);
+        $answer = Answer::with(['user', 'task.group', 'task.file', 'file'])->findOrFail($id);
         return response()->json([
+            'success' => true,
             'data' => $answer,
         ],200,[], JSON_UNESCAPED_UNICODE);
     }

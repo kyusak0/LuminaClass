@@ -6,6 +6,7 @@ import { useAuth } from '@/context/authContext';
 import ArchiveViewer from './ArchiveViewer';
 import { WordViewer, ExcelViewer, PowerPointViewer } from './OfficeViewer';
 import Loader from '../loader/Loader';
+import { Download } from 'lucide-react';
 
 interface FileViewerProps {
   fileData: {
@@ -131,7 +132,7 @@ export default function FileViewer({ fileData, onClose, onFileOpen }: FileViewer
             if (onFileOpen) {
               onFileOpen(file);
             } else {
-              console.log('File from archive (no handler):', file);
+              console.log('Файл из архива:', file);
             }
           }}
           onFileExtracted={(newFile) => {
@@ -201,7 +202,7 @@ export default function FileViewer({ fileData, onClose, onFileOpen }: FileViewer
             onClick={() => setViewMode('preview')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors
               ${viewMode === 'preview'
-                ? 'bg-blue-600 text-white'
+                ? 'bg-main text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
           >
@@ -211,7 +212,7 @@ export default function FileViewer({ fileData, onClose, onFileOpen }: FileViewer
             onClick={() => setViewMode('info')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors
               ${viewMode === 'info'
-                ? 'bg-blue-600 text-white'
+                ? 'bg-main text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
           >
@@ -359,15 +360,16 @@ function OtherFilePreview({ fileData, serveUrl, token }: any) {
 
   // Иначе - предложение скачать
   return (
-    <div className="text-center py-12">
+    <div className="flex flex-col items-center py-12">
       <div className="text-6xl mb-4">📄</div>
       <p className="text-xl text-gray-600 mb-2">{fileData.original_name}</p>
       <p className="text-gray-400 mb-4">Предпросмотр недоступен для этого типа файла</p>
       <button
         onClick={() => downloadFile(serveUrl, fileData.original_name, token)}
-        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        className="px-6 py-3 bg-main flex gap-5 text-white rounded-lg hover:bg-green-700 transition-colors"
       >
-        📥 Скачать файл
+        <Download />
+        Скачать файл
       </button>
     </div>
   );
@@ -416,9 +418,7 @@ function AuthenticatedImage({ src, alt, token }: { src: string; alt: string; tok
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+      <Loader />
     );
   }
 

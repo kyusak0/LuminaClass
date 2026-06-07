@@ -272,23 +272,9 @@ export default function UserPage() {
   }
 
   // Показываем лоадер пока грузится авторизация
-  if (authLoading) {
+  if (authLoading || loading) {
     return (
       <Loader />
-    );
-  }
-
-  // Показываем лоадер пока грузятся данные пользователя
-  if (loading) {
-    return (
-      <MainLayout>
-        <div className="min-h-screen flex items-center justify-center px-4">
-          <div className="text-center">
-            <Loader2 className="w-12 h-12 animate-spin text-main mx-auto mb-4" />
-            <p className="text-gray-600">Загрузка профиля...</p>
-          </div>
-        </div>
-      </MainLayout>
     );
   }
 
@@ -442,10 +428,9 @@ export default function UserPage() {
             {statsCards.map((card) => {
               const Icon = card.icon;
               return (
-                <Link
+                <div
                   key={card.label}
-                  href={'/'}
-                  className="group relative overflow-hidden rounded-2xl shadow-sm hover:shadow-md transition-all border border-gray-100 hover:border-main"
+                  className="group relative overflow-hidden rounded-2xl shadow-sm hover:shadow-md transition-all border border-gray-100 hover:border-main bg-white"
                 >
                   <div className="p-4 sm:p-6">
                     <div className="flex items-start justify-between">
@@ -456,7 +441,7 @@ export default function UserPage() {
                       <Icon className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400 group-hover:scale-110 transition-transform" />
                     </div>
                   </div>
-                </Link>
+                </div>
               );
             })}
           </div>

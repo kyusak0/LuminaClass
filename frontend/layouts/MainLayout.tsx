@@ -66,7 +66,7 @@ export default function MainLayout({ children, alertMess }: MainLayoutProps) {
     };
 
     return (
-        <div className="w-full min-h-screen bg-gray-50">
+        <div className="w-full min-h-screen">
             {/* Sidebar для десктопа */}
             {user && (
                 <>
@@ -240,7 +240,7 @@ export default function MainLayout({ children, alertMess }: MainLayoutProps) {
 
                 {/* Отступ для фиксированной шапки */}
                 <div className="pt-16">
-                    <div className="p-4 md:p-6 lg:p-8">
+                    <div className="p-4 lg:p-6">
                         {user?.is_blocked ? (<div className="text-center">
                             <h2 className="my-20 text-3xl tracking-tight font-extrabold text-gray-900 sm:text-4xl md:text-5xl">
                                 Ваш аккаунт был заблокирован

@@ -19,6 +19,7 @@ import {
     GraduationCap
 } from 'lucide-react';
 import Link from "next/link";
+import Loader from "@/components/loader/Loader";
 
 interface Group {
     id: number;
@@ -53,7 +54,7 @@ export default function ChatPage() {
 
     const loadGroups = async () => {
         if (!get) return;
-        
+
         setLoading(true);
         setError(null);
 
@@ -91,7 +92,7 @@ export default function ChatPage() {
 
     const formatDate = (dateString?: string) => {
         if (!dateString) return '';
-        
+
         const date = new Date(dateString);
         const now = new Date();
         const diff = now.getTime() - date.getTime();
@@ -116,7 +117,7 @@ export default function ChatPage() {
 
     const getGroupColor = (index: number) => {
         const colors = [
-            'bg-blue-500', 'bg-green-500', 'bg-purple-500', 
+            'bg-blue-500', 'bg-green-500', 'bg-purple-500',
             'bg-orange-500', 'bg-pink-500', 'bg-teal-500',
             'bg-indigo-500', 'bg-red-500'
         ];
@@ -125,12 +126,8 @@ export default function ChatPage() {
 
     if (authLoading || loading) {
         return (
-            <MainLayout>
-                <div className="h-screen flex flex-col items-center justify-center">
-                    <Loader2 className="w-12 h-12 text-main animate-spin mb-4" />
-                    <div className="text-lg text-gray-500">Загрузка групп...</div>
-                </div>
-            </MainLayout>
+            <Loader />
+
         );
     }
 
@@ -138,8 +135,8 @@ export default function ChatPage() {
 
     return (
         <MainLayout>
-            <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            
+                <div className="max-w-full p-4 lg:p-6">
                     {/* Header */}
                     <div className="text-center mb-8">
                         <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
@@ -149,8 +146,8 @@ export default function ChatPage() {
                             Групповые чаты
                         </h1>
                         <p className="text-gray-500">
-                            {user.role === 'teacher' 
-                                ? 'Управляйте группами и общайтесь с учениками' 
+                            {user.role === 'teacher'
+                                ? 'Управляйте группами и общайтесь с учениками'
                                 : 'Общайтесь с одногруппниками и преподавателями'}
                         </p>
                     </div>
@@ -160,7 +157,7 @@ export default function ChatPage() {
                         <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                         <input
                             type="text"
-                            placeholder="Поиск группы по названию, предмету или преподавателю..."
+                            placeholder="Поиск группы..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-main focus:border-transparent outline-none transition"
@@ -204,7 +201,7 @@ export default function ChatPage() {
                                                     </span>
                                                 )}
                                             </div>
-                                            
+
                                             <div className="flex items-center gap-3 text-sm text-gray-500">
                                                 {group.teacher_name && (
                                                     <span className="flex items-center gap-1">
@@ -291,7 +288,6 @@ export default function ChatPage() {
                         </div>
                     </div>
                 </div>
-            </div>
         </MainLayout>
     );
 }

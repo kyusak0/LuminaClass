@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Group;
 use App\Models\GroupMessage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class ChatController extends Controller
 {
@@ -45,9 +46,9 @@ class ChatController extends Controller
         // Проверка доступа
         $group = Group::findOrFail($groupId);
         $isStudent = $group->students()->where('student_id', $user->id)->exists();
-        $isTeacher = $group->teacher && $group->teacher->user_id === $user->id;
+        $isTeacher = $group->teacher && $group->teacher->tutor_id === $user->id;
         
-        if (!$isStudent && !$isTeacher) {
+        if (!$isStudent && !$isTeacher && Auth::user()->role !== 'admin') {
             return response()->json([
                 'success' => false,
                 'error' => 'Access denied'
@@ -87,9 +88,9 @@ class ChatController extends Controller
         // Проверка доступа
         $group = Group::findOrFail($groupId);
         $isStudent = $group->students()->where('student_id', $user->id)->exists();
-        $isTeacher = $group->teacher && $group->teacher->user_id === $user->id;
+        $isTeacher = $group->teacher && $group->teacher->tutor_id === $user->id;
         
-        if (!$isStudent && !$isTeacher) {
+        if (!$isStudent && !$isTeacher && Auth::user()->role !== 'admin') {
             return response()->json([
                 'success' => false,
                 'error' => 'Access denied'
