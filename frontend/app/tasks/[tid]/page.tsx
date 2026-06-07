@@ -206,7 +206,8 @@ export default function TaskPage() {
 
         const zipBlob: Blob = await zip.generateAsync({ type: 'blob' });
         const zipFileName = `answer_${Date.now()}.zip`;
-        const zipFile = new File([zipBlob], zipFileName, { type: 'application/zip' });
+        const zipFile = new Blob([zipBlob], { type: 'application/zip' }) as File;
+        Object.defineProperty(zipFile, 'name', { value: zipFileName });
         const fileName = prompt('Название для архива', zipFile.name) || zipFile.name;
         fileId = await uploadFile(zipFile, fileName);
       } else {
@@ -534,22 +535,22 @@ export default function TaskPage() {
                   )}
                 </div>
                 <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5 text-main" />
-                  Описание задания
-                </h3>
-                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-                  {task.description || 'Нет описания'}
-                </p>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-main" />
+                    Описание задания
+                  </h3>
+                  <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                    {task.description || 'Нет описания'}
+                  </p>
+                </div>
               </div>
-              </div>
-              
+
             </div>
 
             {/* Правая колонка - информация и форма */}
             <div className="lg:col-span-3 space-y-6">
               {/* Описание */}
-              
+
 
               {/* Форма отправки (для учеников) */}
               {!isTeacher && (
@@ -663,7 +664,7 @@ export default function TaskPage() {
                           },
                           {
                             label: 'Перейти',
-                            icon: <ExternalLink size={24}/>,
+                            icon: <ExternalLink size={24} />,
                             className: 'text-main',
                             onClick: (record) => router.push(`/answers/${record.id}`),
                             getLabel: () => 'К ответу'

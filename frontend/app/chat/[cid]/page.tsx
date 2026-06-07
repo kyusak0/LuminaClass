@@ -36,6 +36,7 @@ export default function GroupChatPage() {
     const [lastMessageId, setLastMessageId] = useState<number>(0);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null); // ✅ Добавляем этот ref
     const pollingRef = useRef<NodeJS.Timeout | null>(null);
     const blockedRef = useRef(false);
 
@@ -242,9 +243,11 @@ export default function GroupChatPage() {
                 </div>
             )}
 
-
             {/* Сообщения */}
-            <div className="flex-1 overflow-y-auto px-4 py-6">
+            <div 
+                ref={messagesContainerRef} // ✅ Добавляем ref к контейнеру
+                className="flex-1 overflow-y-auto px-4 py-6"
+            >
                 <div className="w-full pt-16">
                     {loading && (
                         <div className="flex justify-center py-12">
@@ -257,9 +260,6 @@ export default function GroupChatPage() {
                             <ShieldAlert className="w-16 h-16 text-red-400 mb-4" />
                             <h3 className="text-lg font-semibold text-red-600 mb-2">Доступ запрещен</h3>
                             <p className="text-red-500 mb-6">{error}</p>
-                            {/* <button onClick={handleRetry} className="px-6 py-3 bg-main text-white rounded-lg hover:bg-main-dark">
-                                    Повторить
-                                </button> */}
                         </div>
                     )}
 
