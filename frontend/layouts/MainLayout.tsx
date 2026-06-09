@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/authContext";
-import { Book, BotIcon, ChartBar, ChevronLeft, ChevronRight, Dock, Home, LogOut, Menu, Pencil, Tags, User } from "lucide-react";
+import { Book, BotIcon, ChartBar, ChevronLeft, ChevronRight, Dock, Home, LogOut, Menu, Pencil, Shield, Tags, User } from "lucide-react";
 import Alert from "@/components/alert/Alert";
 
 interface MainLayoutProps {
@@ -26,16 +26,31 @@ export default function MainLayout({ children, alertMess }: MainLayoutProps) {
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isMounted, setIsMounted] = useState(false); // Добавляем флаг монтирования
 
     useEffect(() => {
         setClientPathname(pathname);
     }, [pathname]);
 
     useEffect(() => {
+        // Загружаем сохраненное состояние только после монтирования на клиенте
         const savedState = localStorage.getItem('sidebar_open');
         if (savedState !== null) {
             setIsSidebarOpen(savedState === 'true');
         }
+        
+        // Проверяем ширину экрана при загрузке
+        const handleResize = () => {
+            if (window.innerWidth < 1024) { // lg breakpoint
+                setIsSidebarOpen(false);
+            }
+        };
+        
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        setIsMounted(true);
+        
+        return () => window.removeEventListener('resize', handleResize);
     }, []);
 
     const handleLogout = async () => {
@@ -65,17 +80,33 @@ export default function MainLayout({ children, alertMess }: MainLayoutProps) {
         router.back();
     };
 
+    // Пока не смонтировано, не показываем sidebar (избегаем мигания)
+    if (!isMounted) {
+        return (
+            <div className="w-full min-h-screen">
+                <main className="min-h-screen">
+                    <div className="pt-16">
+                        <div className="p-4 lg:p-6">
+                            {children}
+                        </div>
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
     return (
         <div className="w-full min-h-screen">
-            {/* Sidebar для десктопа */}
+            {/* Sidebar для десктопа и мобильного */}
             {user && (
                 <>
                     <aside
                         className={`fixed top-0 left-0 h-screen bg-main text-white 
                         flex flex-col transition-all duration-300 ease-in-out z-20 shadow-xl
                         ${isSidebarOpen ? 'w-64' : 'w-20'} 
-                        max-lg:fixed max-lg:z-30 max-lg:transform max-lg:transition-transform max-lg:duration-300
-                        ${isSidebarOpen && isMobileMenuOpen ? 'max-lg:translate-x-0' : 'max-lg:-translate-x-full'}`}
+                        max-lg:fixed max-lg:z-30 max-lg:transition-transform max-lg:duration-300
+                        ${isMobileMenuOpen ? 'max-lg:translate-x-0' : 'max-lg:-translate-x-full'}
+                        max-lg:w-64 max-lg:${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
                     >
                         {/* Кнопка сворачивания - только для десктопа */}
                         <button
@@ -86,16 +117,28 @@ export default function MainLayout({ children, alertMess }: MainLayoutProps) {
                             {isSidebarOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
                         </button>
 
+                        {/* Кнопка закрытия для мобильной версии */}
+                        <button
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className="absolute -right-3 top-8 bg-main rounded-full p-1.5 shadow-lg hover:bg-main-hover transition-colors lg:hidden"
+                            title="Закрыть меню"
+                        >
+                            <ChevronLeft size={16} />
+                        </button>
+
                         {/* Логотип */}
-                        <div className={`pt-8 pb-8 ${!isSidebarOpen && 'flex justify-center'}`}>
+                        <div className={`pt-8 pb-8 ${!isSidebarOpen && 'max-lg:flex max-lg:justify-start lg:flex lg:justify-center'}`}>
                             {isSidebarOpen ? (
                                 <Link href="/" className="flex items-center gap-3 px-4 py-2.5">
                                     <BotIcon className="w-6 h-6" />
                                     <span className="font-bold text-lg">Люмина Класс</span>
                                 </Link>
                             ) : (
-                                <Link href="/" className="flex justify-center px-2 py-2.5">
+                                <Link href="/" className="flex justify-center px-2 py-2.5 max-lg:justify-start max-lg:px-4">
                                     <BotIcon className="w-6 h-6" />
+                                    {!isSidebarOpen && (
+                                        <span className="font-bold text-lg ml-3 lg:hidden">Люмина Класс</span>
+                                    )}
                                 </Link>
                             )}
                         </div>
@@ -125,6 +168,13 @@ export default function MainLayout({ children, alertMess }: MainLayoutProps) {
                             <NavLink href={`/users/${user.id}`} currentPath={clientPathname} isSidebarOpen={isSidebarOpen}>
                                 <User className="w-5 h-5" /> Профиль
                             </NavLink>
+
+                            {user.role == 'admin' && (
+                                <NavLink href={`/admin`} currentPath={clientPathname} isSidebarOpen={isSidebarOpen}>
+                                    <Shield className="w-5 h-5" /> Админ панель
+                                </NavLink>
+                            )}
+
                         </nav>
 
                         {/* Нижняя часть */}
@@ -139,7 +189,8 @@ export default function MainLayout({ children, alertMess }: MainLayoutProps) {
                                 className={`flex items-center gap-3 py-2.5 rounded-lg transition-all duration-200
                                 hover:bg-white/10 text-white/90 hover:text-white
                                 disabled:opacity-50 disabled:cursor-not-allowed
-                                ${isSidebarOpen ? 'px-4 justify-start' : 'px-2 justify-center'}`}
+                                ${isSidebarOpen ? 'px-4 justify-start' : 'px-2 justify-center'}
+                                max-lg:px-4 max-lg:justify-start`}
                             >
                                 <LogOut className="w-5 h-5" />
                                 {isSidebarOpen && (
@@ -155,7 +206,9 @@ export default function MainLayout({ children, alertMess }: MainLayoutProps) {
                                         <span>Выйти</span>
                                     )
                                 )}
-                                {!isSidebarOpen && !isLoggingOut && <span className="sr-only">Выйти</span>}
+                                {!isSidebarOpen && !isLoggingOut && (
+                                    <span className="max-lg:inline lg:hidden">Выйти</span>
+                                )}
                             </button>
                         </div>
                     </aside>
@@ -173,7 +226,8 @@ export default function MainLayout({ children, alertMess }: MainLayoutProps) {
             {/* Основной контент */}
             <main
                 className={`transition-all duration-300 min-h-screen
-                    ${user && isSidebarOpen ? 'lg:ml-64' : user && !isSidebarOpen ? 'lg:ml-20' : ''}`}
+                    ${user && isSidebarOpen ? 'lg:ml-64' : user && !isSidebarOpen ? 'lg:ml-20' : ''}
+                    max-lg:ml-0`}
             >
                 {/* Шапка */}
                 <header
@@ -194,7 +248,7 @@ export default function MainLayout({ children, alertMess }: MainLayoutProps) {
                             )}
                             <button
                                 onClick={goBack}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-gray-600 hover:text-main hover:bg-gray-100 transition-colors"
+                                className="flex items-center gap-2 px-3 py-1.5 max-lg:hidden rounded-lg text-gray-600 hover:text-main hover:bg-gray-100 transition-colors"
                             >
                                 <ChevronLeft size={18} />
                                 <span className="text-sm font-medium">Назад</span>
@@ -252,7 +306,7 @@ export default function MainLayout({ children, alertMess }: MainLayoutProps) {
                     </div>
                 </div>
             </main>
-        <Alert alertMess={alertMess}/>
+            <Alert alertMess={alertMess} />
         </div>
     );
 }
@@ -276,6 +330,7 @@ function NavLink({ href, currentPath, isSidebarOpen, children }: {
             href={href}
             className={`flex items-center rounded-lg transition-all duration-200
                 ${isSidebarOpen ? 'gap-3 px-4 py-2.5 justify-start' : 'gap-0 px-2 py-2.5 justify-center'}
+                max-lg:gap-3 max-lg:px-4 max-lg:py-2.5 max-lg:justify-start
                 ${isActive
                     ? 'bg-white/20 text-white shadow-sm'
                     : 'text-white/80 hover:text-white hover:bg-white/10'
@@ -285,6 +340,12 @@ function NavLink({ href, currentPath, isSidebarOpen, children }: {
             <span className="flex-shrink-0">{icon}</span>
             {isSidebarOpen && text && (
                 <span className="text-sm font-medium truncate">{text}</span>
+            )}
+            {/* Для мобильной версии всегда показываем текст */}
+            {!isSidebarOpen && text && (
+                <span className="text-sm font-medium truncate max-lg:inline lg:hidden">
+                    {text}
+                </span>
             )}
         </Link>
     );

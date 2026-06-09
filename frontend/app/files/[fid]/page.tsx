@@ -3,9 +3,11 @@
 import AdminLayout from "@/layouts/AdminLayout";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/authContext";
 import { NEXT_PUBLIC_API_URL } from "@/lib/axios.config";
+import FileViewer from "@/components/files/FileViewer";
+import Loader from "@/components/loader/Loader";
 
 // Импорты иконок из lucide-react
 import {
@@ -25,6 +27,7 @@ import {
     Loader2,
     Eye
 } from 'lucide-react';
+import AdminLoader from "@/components/adminLoader/AdminLoader";
 
 interface FileData {
     id: number;
@@ -34,6 +37,8 @@ interface FileData {
     path: string;
     created_at: string;
     user: any;
+    file_type?: string;
+    serve_url?: string;
 }
 
 export default function FilePage() {
@@ -44,10 +49,13 @@ export default function FilePage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [downloading, setDownloading] = useState(false);
+    const [showFileViewer, setShowFileViewer] = useState(false);
+    const [fileViewerData, setFileViewerData] = useState<any>(null);
+    const [currentViewerKey, setCurrentViewerKey] = useState(0);
 
     useEffect(() => {
         const fileId = Number(params.fid);
-        
+
         if (isNaN(fileId) || fileId === 0) {
             router.push('/files');
             return;
@@ -78,9 +86,24 @@ export default function FilePage() {
 
         try {
             const response = await get(`/get-file/${params.fid}`);
-            
+
             if (response.data) {
-                setFile(response.data.data);
+                const fileData = response.data.data;
+
+                const viewerData = {
+                    id: fileData.id,
+                    original_name: fileData.original_name,
+                    mime_type: fileData.mime_type,
+                    size: fileData.size,
+                    serve_url: `${NEXT_PUBLIC_API_URL}/storage/${fileData.path}`,
+                    url: `${NEXT_PUBLIC_API_URL}/api/files/download/${fileData.id}`,
+                    file_type: getFileTypeFromMime(fileData.mime_type, fileData.original_name),
+                    created_at: fileData.created_at,
+                    user: fileData.user
+                };
+
+                setFile(fileData);
+                setFileViewerData(viewerData);
             } else {
                 setError('Файл не найден');
             }
@@ -90,9 +113,35 @@ export default function FilePage() {
         }
     };
 
+    const getFileTypeFromMime = (mimeType: string, fileName: string): string => {
+        const ext = fileName.split('.').pop()?.toLowerCase() || '';
+
+        if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'archive';
+        if (['doc', 'docx'].includes(ext)) return 'word';
+        if (['xls', 'xlsx'].includes(ext)) return 'excel';
+        if (['ppt', 'pptx'].includes(ext)) return 'presentation';
+        if (['pdf'].includes(ext)) return 'pdf';
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext)) return 'image';
+        if (['mp4', 'avi', 'mov', 'mkv'].includes(ext)) return 'video';
+        if (['mp3', 'wav', 'ogg'].includes(ext)) return 'audio';
+        if (['txt', 'csv', 'json', 'xml', 'html', 'css', 'js', 'md'].includes(ext)) return 'text';
+
+        if (mimeType.startsWith('image/')) return 'image';
+        if (mimeType.startsWith('video/')) return 'video';
+        if (mimeType.startsWith('audio/')) return 'audio';
+        if (mimeType === 'application/pdf') return 'pdf';
+        if (mimeType.includes('zip') || mimeType.includes('compressed')) return 'archive';
+        if (mimeType.includes('word') || mimeType.includes('document')) return 'word';
+        if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'excel';
+        if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return 'presentation';
+        if (mimeType.startsWith('text/')) return 'text';
+
+        return 'other';
+    };
+
     const getFileIcon = (mimeType: string, size: 'large' | 'small' = 'large') => {
         const iconSize = size === 'large' ? 'w-20 h-20' : 'w-5 h-5';
-        
+
         if (mimeType.includes('pdf')) return <File className={`${iconSize} text-red-500`} />;
         if (mimeType.includes('image')) return <FileImage className={`${iconSize} text-purple-500`} />;
         if (mimeType.includes('word') || mimeType.includes('document')) return <FileText className={`${iconSize} text-blue-500`} />;
@@ -102,10 +151,6 @@ export default function FilePage() {
         if (mimeType.includes('video')) return <File className={`${iconSize} text-blue-400`} />;
         if (mimeType.includes('audio')) return <File className={`${iconSize} text-green-400`} />;
         return <FileIcon className={`${iconSize} text-gray-400`} />;
-    };
-
-    const getFileUrl = (filePath: string) => {
-        return `${NEXT_PUBLIC_API_URL}/storage/${filePath}`;
     };
 
     const formatFileSize = (bytes: number) => {
@@ -120,7 +165,7 @@ export default function FilePage() {
         if (!file || !post || downloading) return;
 
         const customName = prompt(`Под каким именем сохранить? \n по умолчанию: ${file.original_name}`, file.original_name);
-        
+
         if (customName === null || customName.trim() === '') {
             return;
         }
@@ -165,16 +210,43 @@ export default function FilePage() {
         }
     };
 
+    const handleOpenViewer = () => {
+        // Сбрасываем данные к исходному файлу при открытии
+        if (file) {
+            const viewerData = {
+                id: file.id,
+                original_name: file.original_name,
+                mime_type: file.mime_type,
+                size: file.size,
+                serve_url: `${NEXT_PUBLIC_API_URL}/storage/${file.path}`,
+                url: `${NEXT_PUBLIC_API_URL}/api/files/download/${file.id}`,
+                file_type: getFileTypeFromMime(file.mime_type, file.original_name),
+                created_at: file.created_at,
+                user: file.user
+            };
+            setFileViewerData(viewerData);
+        }
+        setCurrentViewerKey(prev => prev + 1);
+        setShowFileViewer(true);
+    };
+
+    const handleCloseViewer = () => {
+        setShowFileViewer(false);
+    };
+
+    const handleFileFromArchive = useCallback((fileFromArchive: any) => {
+        console.log('📦 Открываем файл из архива:', fileFromArchive);
+
+        // Обновляем данные для просмотрщика
+        setFileViewerData(fileFromArchive);
+        setCurrentViewerKey(prev => prev + 1);
+        // Показываем просмотрщик (если был закрыт)
+        setShowFileViewer(true);
+    }, []);
+
     if (loading) {
         return (
-            <AdminLayout>
-                <div className="min-h-screen flex items-center justify-center">
-                    <div className="text-center">
-                        <Loader2 className="w-12 h-12 text-main animate-spin mx-auto mb-4" />
-                        <p className="text-gray-600">Загрузка файла...</p>
-                    </div>
-                </div>
-            </AdminLayout>
+            <AdminLoader />
         );
     }
 
@@ -207,12 +279,23 @@ export default function FilePage() {
     }
 
     const canDelete = user?.role === 'admin' || user?.id === file?.user.id;
-    const isPreviewable = file.mime_type.startsWith('image/') || 
-                         file.mime_type === 'application/pdf' || 
-                         file.mime_type.startsWith('text/');
 
     return (
         <AdminLayout>
+            {/* Модальное окно с FileViewer */}
+            {showFileViewer && fileViewerData && (
+                <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center p-4">
+                    <div className="relative w-full h-full max-w-7xl max-h-[90vh] bg-gray-100 rounded-xl shadow-2xl overflow-auto">
+                        <FileViewer
+                            key={currentViewerKey}
+                            fileData={fileViewerData}
+                            onClose={handleCloseViewer}
+                            onFileOpen={handleFileFromArchive}
+                        />
+                    </div>
+                </div>
+            )}
+
             <div className="min-h-screen bg-gray-50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     {/* Header с кнопкой назад */}
@@ -244,47 +327,26 @@ export default function FilePage() {
                                     </h3>
                                 </div>
                                 <div className="min-h-[400px] sm:min-h-[500px] bg-gray-50">
-                                    {isPreviewable ? (
-                                        <>
-                                            {file.mime_type.startsWith('image/') && (
-                                                <div className="flex items-center justify-center min-h-[400px] sm:min-h-[500px] p-4 sm:p-8">
-                                                    <img
-                                                        src={getFileUrl(file.path)}
-                                                        alt={file.original_name}
-                                                        className="max-w-full max-h-full object-contain rounded-lg"
-                                                    />
-                                                </div>
-                                            )}
-                                            {file.mime_type === 'application/pdf' && (
-                                                <iframe
-                                                    src={getFileUrl(file.path)}
-                                                    className="w-full min-h-[400px] sm:min-h-[500px] border-0 rounded-b-lg"
-                                                    title={file.original_name}
-                                                />
-                                            )}
-                                            {file.mime_type.startsWith('text/') && (
-                                                <div className="w-full min-h-[400px] sm:min-h-[500px] p-4">
-                                                    <iframe
-                                                        src={getFileUrl(file.path)}
-                                                        className="w-full min-h-[500px] border rounded-lg bg-white"
-                                                        title={file.original_name}
-                                                    />
-                                                </div>
-                                            )}
-                                        </>
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center min-h-[400px] sm:min-h-[500px] text-center p-6 sm:p-8">
-                                            {getFileIcon(file.mime_type, 'large')}
-                                            <h3 className="text-xl sm:text-2xl font-semibold mb-2 sm:mb-3 mt-4 text-gray-900">
-                                                {file.original_name}
-                                            </h3>
-                                            <p className="text-gray-500 mb-6 text-sm sm:text-base">
-                                                Предварительный просмотр недоступен для этого типа файла
-                                            </p>
+                                    <div className="flex flex-col items-center justify-center min-h-[400px] sm:min-h-[500px] text-center p-6 sm:p-8">
+                                        {getFileIcon(file.mime_type, 'large')}
+                                        <h3 className="text-xl sm:text-2xl font-semibold mb-2 sm:mb-3 mt-4 text-gray-900">
+                                            {file.original_name}
+                                        </h3>
+                                        <p className="text-gray-500 mb-6 text-sm sm:text-base">
+                                            {formatFileSize(file.size)}
+                                        </p>
+                                        <div className="flex gap-3 flex-wrap justify-center">
+                                            <button
+                                                onClick={handleOpenViewer}
+                                                className="px-4 sm:px-6 py-2 sm:py-3 bg-main text-white rounded-lg hover:bg-main-dark transition-colors flex items-center gap-2 text-sm sm:text-base"
+                                            >
+                                                <Eye className="w-5 h-5" />
+                                                Открыть в просмотрщике
+                                            </button>
                                             <button
                                                 onClick={downloadFile}
                                                 disabled={downloading}
-                                                className="px-4 sm:px-6 py-2 sm:py-3 bg-main text-white rounded-lg hover:bg-main-dark transition-colors disabled:opacity-50 flex items-center gap-2 text-sm sm:text-base"
+                                                className="px-4 sm:px-6 py-2 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm sm:text-base"
                                             >
                                                 {downloading ? (
                                                     <>
@@ -294,19 +356,19 @@ export default function FilePage() {
                                                 ) : (
                                                     <>
                                                         <Download className="w-4 h-4" />
-                                                        Скачать файл
+                                                        Скачать
                                                     </>
                                                 )}
                                             </button>
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                         {/* Правая колонка - информация о файле */}
                         <div className="lg:w-80 xl:w-96 flex-shrink-0">
-                            <div className="sticky top-4">
+                            <div className="sticky top-24">
                                 <div className="bg-white rounded-xl shadow-lg border border-gray-100">
                                     <div className="bg-main px-4 sm:px-6 py-3 sm:py-4 rounded-t-xl">
                                         <h3 className="text-lg sm:text-xl font-semibold text-white flex items-center gap-2">
@@ -357,7 +419,7 @@ export default function FilePage() {
                                                 <User className="w-5 h-5 text-main flex-shrink-0" />
                                                 <div className="min-w-0 flex-1">
                                                     <p className="text-xs text-gray-500">Автор</p>
-                                                    <Link 
+                                                    <Link
                                                         href={`/users/${file.user.id}`}
                                                         className="text-main hover:text-main-dark font-medium text-sm truncate block"
                                                     >
@@ -386,9 +448,17 @@ export default function FilePage() {
                                         {/* Действия */}
                                         <div className="space-y-3 pt-4 border-t border-gray-200">
                                             <button
+                                                onClick={handleOpenViewer}
+                                                className="w-full px-4 py-3 bg-main text-white rounded-lg hover:bg-main-dark transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
+                                            >
+                                                <Eye className="w-5 h-5" />
+                                                Открыть в просмотрщике
+                                            </button>
+
+                                            <button
                                                 onClick={downloadFile}
                                                 disabled={downloading}
-                                                className="w-full px-4 py-3 bg-main text-white rounded-lg hover:bg-main-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm sm:text-base"
+                                                className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm sm:text-base"
                                             >
                                                 {downloading ? (
                                                     <>
@@ -402,7 +472,7 @@ export default function FilePage() {
                                                     </>
                                                 )}
                                             </button>
-                                            
+
                                             {canDelete && (
                                                 <button
                                                     onClick={deleteFile}

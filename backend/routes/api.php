@@ -60,7 +60,7 @@ Route::middleware('api')->group(function () {
         Route::get('/get-archive-contents/{id}', [FileController::class, 'getArchiveContents']);
 
         Route::post('/save-file-from-url', [FileController::class, 'saveFileFromUrl']);
-        Route::get('/files/{id}/serve', [FileController::class, 'serveFile']);
+        Route::get('/files/serve/{id}', [FileController::class, 'serveFile']);
         Route::post('/extract-file', [FileController::class, 'extractFile']);
 
         Route::get('/get-office-content/{id}', [FileController::class, 'getOfficeFileContent']);
@@ -71,6 +71,7 @@ Route::middleware('api')->group(function () {
         Route::get('/get-group-info/{id}', [GroupController::class, 'getGroupInfo']);
         Route::get('/get-user-groups/{id}', [GroupController::class, 'getUserGroups']);
         Route::get('/get-teacher-groups/{id}', [GroupController::class, 'getTeacherGroups']);
+        Route::post('/group/{id}/change-teacher', [GroupController::class, 'changeTeacherGroups']);
 
         Route::post('/create-task', [TaskController::class, 'createTask']);
         Route::get('/get-tasks', [TaskController::class, 'allTasks']);

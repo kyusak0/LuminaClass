@@ -609,23 +609,6 @@ export default function SearchTable({
             );
         }
 
-        // if (column.data.tag === 'select') {
-        //     return (
-        //         <select
-        //             className="w-full h-10 px-2 border rounded"
-        //             value={column.data.value || ''}
-        //             onChange={(e) => marksChange(e, record, column)}
-        //             onClick={(e) => e.stopPropagation()}
-        //         >
-        //             <option value="">Выберите</option>
-        //             <option value="н/а">н/а</option>
-        //             <option value="2">2</option>
-        //             <option value="3">3</option>
-        //             <option value="4">4</option>
-        //             <option value="5">5</option>
-        //         </select>
-        //     );
-        // }
 
         return (
             <div
@@ -678,7 +661,7 @@ export default function SearchTable({
                                 {record.columns.map((column: Column, columnIndex: number) => (
                                     <td
                                         key={`${recordIndex}-${columnIndex}`}
-                                        className={`text-sm border-main border h-10 truncate ${column.data.add || ''}`}
+                                        className={`text-sm border-main border h-10 max-w-[300px] pr-5 truncate ${column.data.add || ''}`}
                                     >
                                         {renderCell(column, record, columnIndex, recordIndex)}
                                     </td>

@@ -8,6 +8,7 @@ import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import RequiredSymbol from "@/components/requiredSymbol/RequiredSymbol";
 import JSZip from 'jszip';
 import axios from '@/lib/axios.config';
+import Loader from "@/components/loader/Loader";
 
 export default function TaskPage() {
     const router = useRouter();
@@ -60,7 +61,7 @@ export default function TaskPage() {
             let records: Array<any> = [];
 
             // Проверяем структуру ответа
-            const filesData = res.data || res;
+            const filesData = res.data.data || res.data;
             
             (Array.isArray(filesData) ? filesData : []).forEach((item: any) => {
                 if (item.author_id == user?.id) {
@@ -165,7 +166,7 @@ export default function TaskPage() {
                 group_id: parseInt(form.group.value),
                 task_id: fileId,
                 title: form.title.value.trim(),
-                description: form.desc.value?.trim() || 'без описания',
+                description: form.desc.value?.trim() || null,
                 deadline: form.deadline.value || null,
                 user_id: user?.id || 0,
             };
@@ -421,9 +422,7 @@ export default function TaskPage() {
 
     if (authLoading || (loading && !user)) {
         return (
-            <div className="h-170 flex flex-col items-center justify-center">
-                <div className="text-lg">Загрузка...</div>
-            </div>
+            <Loader />
         );
     }
 

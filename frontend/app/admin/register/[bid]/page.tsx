@@ -17,7 +17,7 @@ export default function BookingPage() {
         return
     }
     const { get, post } = auth;
-    const [users, setUsers] = useState<{ id: number, name: string, login: string }[]>([]);
+    const [users, setUsers] = useState<{ id: number, name: string, login: string, role: string }[]>([]);
     const [groups, setGroups] = useState<{ id: number, name: string }[]>([]);
     const [disabled, setDisabled] = useState(false)
 
@@ -25,8 +25,8 @@ export default function BookingPage() {
 
     const [booking, setBooking] = useState<{
         id: number,
-        name: string,
         surname: string,
+        name: string,
         status: string,
         messanger: string,
         tel: number,
@@ -65,11 +65,17 @@ export default function BookingPage() {
     const getUsers = async () => {
         const res = await get('/get-users');
 
-        const usersRecord = res.data?.map((item: any) => ({
+        const usersRecord = res.data?.data?.map((item: any) => ({
             id: item.id,
             name: item.name,
-            login: item.login
-        }));
+            login: item.login,
+            role: item.role
+        })) || res.data?.map((item: any) => ({
+            id: item.id,
+            name: item.name,
+            login: item.login,
+            role: item.role
+        })) || [];
 
         setUsers(prev => [...prev, ...usersRecord])
     }
@@ -78,10 +84,13 @@ export default function BookingPage() {
         try {
             const res = await get('/get-groups');
 
-            const groupRecords = res.data.map((item: any) => ({
+            const groupRecords = res.data.data?.map((item: any) => ({
                 id: item.id,
                 name: item.name
-            }))
+            })) || res.data?.map((item: any) => ({
+                id: item.id,
+                name: item.name
+            })) || [];
 
             setGroups(prev => [...prev, ...groupRecords])
         } catch (error) {
@@ -91,7 +100,7 @@ export default function BookingPage() {
 
     const getBookingInfo = async (id: string) => {
         const res = await get(`/get-booking/${id}`);
-        setBooking(res.data)
+        setBooking(res.data.data)
     }
 
     // Функция для транслитерации кириллицы в латиницу
@@ -124,20 +133,18 @@ export default function BookingPage() {
             // Очищаем от спецсимволов, оставляем только буквы, цифры, подчеркивание и точку
             baseLogin = baseLogin.replace(/[^a-zA-Z0-9_.]/g, '_').toLowerCase();
         }
-        // Если email нет, генерируем из фамилии и имени
+        // Если email нет, генерируем из имени
         else {
-            const latinSurname = transliterate(booking.surname.toLowerCase());
-            const latinName = transliterate(booking.name.toLowerCase());
-            baseLogin = `${latinSurname}_${latinName}`;
+            const latinName = transliterate(booking.surname.toLowerCase()+"_"+booking.name.toLowerCase());
+            baseLogin = latinName;
             // Убираем пробелы и спецсимволы, оставляем только буквы, цифры, подчеркивание
             baseLogin = baseLogin.replace(/[^a-z0-9_]/gi, '_').toLowerCase();
         }
 
         // Если после очистки получилась пустая строка, используем стандартный формат
         if (!baseLogin) {
-            const latinSurname = transliterate(booking.surname.toLowerCase());
             const latinName = transliterate(booking.name.toLowerCase());
-            baseLogin = `${latinSurname}_${latinName}`.replace(/[^a-z0-9_]/gi, '_').toLowerCase();
+            baseLogin = latinName.replace(/[^a-z0-9_]/gi, '_').toLowerCase();
         }
 
         // Проверяем уникальность среди существующих пользователей
@@ -224,14 +231,14 @@ export default function BookingPage() {
 
                     newData = {
                         ...formData,
-                        name: `${booking?.surname} ${booking?.name} `,
+                        name: booking?.surname+" "+booking?.name,
                         login: finalLogin
                     }
 
                     const res = await post('/create-user', newData);
 
-                    const dataToSend = { status: 'done', user_id: res.id };
-                    const editRes = await post(`/ bookings / ${booking?.id}/edit`, dataToSend);
+                    const dataToSend = { status: 'done', user_id: res.data.id };
+                    const editRes = await post(`/bookings/${booking?.id}/edit`, dataToSend);
 
                     message = editRes.message
 
@@ -240,7 +247,7 @@ export default function BookingPage() {
                     if (formData.role != 'admin') {
                         const funcRoleRes = await post('/funcrole', {
                             role: formData.role,
-                            id_owner: res.id,
+                            id_owner: res.data.id,
                             id_knave: Number(funcRoleField.value),
                         });
                         message = funcRoleRes.message
@@ -468,7 +475,7 @@ export default function BookingPage() {
         if (booking.email && booking.email.includes('@')) {
             return `сгенерирован из email: ${booking.email.split('@')[0]}`;
         }
-        return `сгенерирован из ФИО: ${booking.surname}_${booking.name}`;
+        return `сгенерирован из имени: ${booking.name}`;
     };
 
     return (
@@ -499,7 +506,7 @@ export default function BookingPage() {
                                 </svg>
                                 <div>
                                     <div className="text-xs text-gray-500 uppercase tracking-wide">Личные данные</div>
-                                    <div className="font-medium text-gray-900">{booking?.name} {booking?.surname}</div>
+                                    <div className="font-medium text-gray-900">{booking?.surname} {booking?.name}</div>
                                 </div>
                             </div>
 
@@ -704,9 +711,11 @@ export default function BookingPage() {
                                                             <option value={item.id} key={item.id}>{item.name}</option>
                                                         ))
                                                     ) : funcRole == 'parent' ? (
-                                                        users.map((item: any) => (
-                                                            <option value={item.id} key={item.id}>{item.name}</option>
-                                                        ))
+                                                        users
+                                                            .filter((item: any) => item.role == 'student')
+                                                            .map((item: any) => (
+                                                                <option value={item.id} key={item.id}>{item.name}</option>
+                                                            ))
                                                     ) : (
                                                         <option value="">Нет дополнительных параметров</option>
                                                     )}

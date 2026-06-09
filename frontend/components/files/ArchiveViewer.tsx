@@ -34,7 +34,7 @@ export default function ArchiveViewer({ archive, onClose, onFileOpen, onFileExtr
 
     const getFileIcon = (type: string) => {
         switch (type) {
-            case 'image': return <ImageIcon size={20} className="text-purple-500" />;
+            case 'image': return <ImageIcon size={20} className="text-main" />;
             case 'word': return <FileText size={20} className="text-blue-500" />;
             case 'excel': return <FileSpreadsheet size={20} className="text-green-500" />;
             case 'powerpoint': return <Presentation size={20} className="text-orange-500" />;
@@ -132,10 +132,11 @@ export default function ArchiveViewer({ archive, onClose, onFileOpen, onFileExtr
                     const htmlContent = result.value || `<p>${fileName}</p>`;
                     return {
                         type: fileType,
-                        content: htmlContent,
+                        content: htmlContent,  // HTML для отображения
                         blob: blob,
                         original_name: fileName,
-                        mime_type: mimeType
+                        mime_type: mimeType,
+                        file_type: fileType  // Добавляем file_type
                     };
                 } catch (error) {
                     console.error('DOCX parsing error:', error);
@@ -144,7 +145,37 @@ export default function ArchiveViewer({ archive, onClose, onFileOpen, onFileExtr
                         content: `<p>${fileName}</p><p>Не удалось загрузить содержимое документа.</p>`,
                         blob: blob,
                         original_name: fileName,
-                        mime_type: mimeType
+                        mime_type: mimeType,
+                        file_type: fileType
+                    };
+                }
+            }
+
+            // Для XLSX
+            if (extension === 'xlsx') {
+                try {
+                    const arrayBuffer = await blob.arrayBuffer();
+                    // Используем библиотеку для парсинга XLSX
+                    const XLSX = await import('xlsx');
+                    const workbook = XLSX.read(arrayBuffer);
+                    const htmlContent = XLSX.utils.sheet_to_html(workbook.Sheets[workbook.SheetNames[0]]);
+                    return {
+                        type: fileType,
+                        content: htmlContent,
+                        blob: blob,
+                        original_name: fileName,
+                        mime_type: mimeType,
+                        file_type: fileType
+                    };
+                } catch (error) {
+                    console.error('XLSX parsing error:', error);
+                    return {
+                        type: fileType,
+                        content: `<p>${fileName}</p><p>Не удалось загрузить содержимое таблицы.</p>`,
+                        blob: blob,
+                        original_name: fileName,
+                        mime_type: mimeType,
+                        file_type: fileType
                     };
                 }
             }
@@ -272,24 +303,26 @@ export default function ArchiveViewer({ archive, onClose, onFileOpen, onFileExtr
             const fileContent = await readFileContent(file.zipEntry, file.name, file.extension);
 
             if (fileContent) {
-                // Создаём объект файла для FileViewer
                 const fileToOpen = {
-                    id: `temp_${Date.now()}_${Math.random()}`,
+                    id: `temp_${Date.now()}_${Math.random()}`,  
                     original_name: file.name,
                     file_type: file.type,
-                    path: null,
                     mime_type: fileContent.mime_type,
                     size: fileContent.blob?.size || 0,
-                    content: fileContent.content, // Передаём содержимое для отображения
-                    blob: fileContent.blob,
-                    is_temp: true,
-                    from_archive: true,
+                    content: fileContent.content,     
+                    blob: fileContent.blob,           
+                    is_temp: true,                     
+                    from_archive: true,               
                     archive_id: archive.id
                 };
 
-                // Закрываем архив и открываем файл
+                // Сначала закрываем архив
                 onClose();
-                onFileOpen(fileToOpen);
+
+                // Затем открываем файл через onFileOpen
+                setTimeout(() => {
+                    onFileOpen(fileToOpen);
+                }, 100);
             } else {
                 alert('Не удалось открыть этот файл');
             }
@@ -316,7 +349,9 @@ export default function ArchiveViewer({ archive, onClose, onFileOpen, onFileExtr
                     size: fileContent.blob?.size || 0,
                     content: fileContent.content,
                     blob: fileContent.blob,
-                    is_preview: true
+                    is_preview: true,
+                    from_archive: true,
+                    archive_id: archive.id
                 };
 
                 onFileOpen(fileToPreview);
@@ -363,7 +398,7 @@ export default function ArchiveViewer({ archive, onClose, onFileOpen, onFileExtr
             <div className="bg-white rounded-lg w-3/4 h-3/4 flex flex-col shadow-xl">
                 <div className="border-b p-4 flex justify-between items-center bg-gray-50 rounded-t-lg">
                     <div className="flex items-center gap-2">
-                        <Archive size={24} className="text-purple-600" />
+                        <Archive size={24} className="text-main" />
                         <div>
                             <h2 className="text-xl font-semibold text-gray-800">{archive.original_name}</h2>
                             <p className="text-sm text-gray-500">{files.length} файлов в архиве</p>

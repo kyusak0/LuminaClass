@@ -26,6 +26,8 @@ export default function GroupPage() {
     const [adding, setAdding] = useState(false);
     const [alertMess, setAlertMess] = useState<{ content: any }>();
     const [studentFilter, setStudentFilter] = useState(''); // Фильтр для поиска студентов
+    const [availableTeachers, setAvailableTeachers] = useState<{ id: number, name: string }[]>([]);
+    const [changingTeacher, setChangingTeacher] = useState(false);
 
     // Создаем filterOptions для таблицы на основе студентов в группе
     const filterOptions = useMemo(() => {
@@ -47,8 +49,27 @@ export default function GroupPage() {
     }, []);
 
     const loadData = async () => {
+        await loadAvailableTeachers();
         const groupData = await getGroupInfo(Number(params.gid));
         await loadAvailableStudents(groupData?.existingStudentIds || []);
+    };
+
+    const loadAvailableTeachers = async () => {
+        if (!get) return;
+        try {
+            const res = await get('/get-users');
+            const data: any = res.data.data || res.data;
+            
+            const teachers = data
+                .filter((item: any) => item.role === 'teacher' || item.role === 'admin')
+                .map((item: any) => ({
+                    id: item.id,
+                    name: item.name
+                }));
+            setAvailableTeachers(teachers);
+        } catch (error) {
+            console.error('Error loading teachers:', error);
+        }
     };
 
     const getGroupInfo = async (id: number) => {
@@ -117,7 +138,7 @@ export default function GroupPage() {
         if (!get) return;
         try {
             const res = await get('/get-users');
-            const data: any = res.data.data;
+            const data: any = res.data.data || res.data;
 
             const newItems = data
                 .filter((item: any) => 
@@ -207,6 +228,29 @@ export default function GroupPage() {
         }
     };
 
+    const changeTeacher = async (newTeacherId: number) => {
+        if (!post || !group?.id) return;
+        
+        setChangingTeacher(true);
+        try {
+            const res = await post(`/group/${group.id}/change-teacher`, { teacher_id: newTeacherId });
+            
+            // Обновляем информацию о группе
+            const newTeacher = availableTeachers.find(t => t.id === newTeacherId);
+            setGroup(prev => ({
+                ...prev!,
+                teacherId: newTeacherId,
+                teacher: newTeacher?.name || ''
+            }));
+            
+            setAlertMessage(res.message || 'Куратор успешно изменен');
+        } catch (error: any) {
+            setAlertMessage(error.message || 'Ошибка при смене куратора');
+        } finally {
+            setChangingTeacher(false);
+        }
+    };
+
     const setAlertMessage = (message: string) => {
         const alertContent = (
             <div>
@@ -286,11 +330,26 @@ export default function GroupPage() {
                     <span className="font-semibold">Предмет:</span> {group?.subject}
                 </div>
                 
-                <div>
-                    <span className="font-semibold">Куратор группы:</span>{' '}
-                    <Link href={`/users/${group?.teacherId}`} className="text-main hover:underline">
-                        {group?.teacher}
-                    </Link>
+                <div className="flex items-center gap-3">
+                    <span className="font-semibold">Куратор группы:</span>
+                    <select
+                        value={group?.teacherId || ''}
+                        onChange={(e) => changeTeacher(Number(e.target.value))}
+                        disabled={changingTeacher}
+                        className="px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-main focus:border-transparent bg-white"
+                    >
+                        {availableTeachers.map((teacher) => (
+                            <option key={teacher.id} value={teacher.id}>
+                                {teacher.name}
+                            </option>
+                        ))}
+                    </select>
+                    {changingTeacher && (
+                        <svg className="animate-spin h-5 w-5 text-main" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    )}
                 </div>
             </div>
 

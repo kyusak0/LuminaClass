@@ -114,65 +114,13 @@ export default function RegisterPage() {
         return null;
     };
 
-    // Валидация Telegram
-    const validateTelegram = (value: string): string | null => {
-        if (!value.trim()) {
-            return 'Telegram username обязателен';
-        }
-        
-        if (!value.startsWith('@')) {
-            return 'Telegram username должен начинаться с @';
-        }
-        
-        const cleanUsername = value.substring(1);
-        if (cleanUsername.length < 3) {
-            return 'Username должен содержать минимум 3 символа';
-        }
-        
-        if (cleanUsername.length > 32) {
-            return 'Username не может быть длиннее 32 символов';
-        }
-        
-        // Разрешенные символы: буквы, цифры, нижнее подчеркивание
-        const usernameRegex = /^[a-zA-Z0-9_]+$/;
-        if (!usernameRegex.test(cleanUsername)) {
-            return 'Username может содержать только буквы, цифры и нижнее подчеркивание';
-        }
-        
-        return null;
-    };
-
-    // Валидация Max ID
-    const validateMaxId = (value: string): string | null => {
-        if (!value.trim()) {
-            return 'Max ID обязателен';
-        }
-        
-        const cleanId = value.trim();
-        if (cleanId.length < 3) {
-            return 'Max ID должен содержать минимум 3 символа';
-        }
-        
-        if (cleanId.length > 50) {
-            return 'Max ID не может быть длиннее 50 символов';
-        }
-        
-        // Разрешенные символы: буквы, цифры, дефис, нижнее подчеркивание
-        const idRegex = /^[a-zA-Z0-9_-]+$/;
-        if (!idRegex.test(cleanId)) {
-            return 'Max ID может содержать только буквы, цифры, дефис и нижнее подчеркивание';
-        }
-        
-        return null;
-    };
-
     // Определяем тип поля связи на основе выбранного способа
     const getContactFieldType = () => {
         switch(formData.messanger) {
             case 'email':
                 return 'email';
             case 't.me':
-                return 'text';
+                return 'tel';
             default:
                 return 'tel';
         }
@@ -205,9 +153,7 @@ export default function RegisterPage() {
             case 'email':
                 return 'example@mail.com';
             case 't.me':
-                return '@username';
-            case 'max':
-                return 'ID пользователя Max';
+                return '+7 (999) 999-99-99';
             default:
                 return 'Контактные данные';
         }
@@ -225,13 +171,7 @@ export default function RegisterPage() {
             case 't.me':
                 return (
                     <svg className="h-5 w-5 text-gray-400 group-focus-within:text-green-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
-                );
-            case 'max':
-                return (
-                    <svg className="h-5 w-5 text-gray-400 group-focus-within:text-green-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                     </svg>
                 );
             default:
@@ -255,9 +195,7 @@ export default function RegisterPage() {
             case 'sms':
                 return validatePhone(value);
             case 't.me':
-                return validateTelegram(value);
-            case 'max':
-                return validateMaxId(value);
+                return validatePhone(value);
             default:
                 return null;
         }
@@ -295,36 +233,31 @@ export default function RegisterPage() {
         e.preventDefault();
         
         const messangerSelect = document.querySelector('#messanger') as HTMLSelectElement;
-        const targetInput = document.querySelector('#target') as HTMLInputElement;
+        const targetSelect = document.querySelector('#target') as HTMLSelectElement;
         
         // Подготавливаем данные для отправки
         const submitData: any = {
             name: formData.name.trim(),
             surname: formData.surname.trim(),
             messanger: messangerSelect?.value || 'sms',
-            target: targetInput?.value || 'register',
+            target: targetSelect?.value || 'register',
         };
         
         // В зависимости от способа связи, сохраняем в соответствующее поле
         const contactMethod = messangerSelect?.value || 'sms';
         let contactValue = formData.contactValue;
         
-        // Если это телефон, очищаем от форматирования перед отправкой
-        if (contactMethod === 'sms') {
+        // Если это телефон или Telegram, очищаем от форматирования перед отправкой
+        if (contactMethod === 'sms' || contactMethod === 't.me') {
             contactValue = cleanPhoneNumber(contactValue);
-        } else if (contactMethod === 't.me') {
-            // Для Telegram убираем @, если он есть
-            contactValue = contactValue.startsWith('@') ? contactValue : `@${contactValue}`;
         } else if (contactMethod === 'email') {
             contactValue = contactValue.trim().toLowerCase();
         }
         
         if (contactMethod === 'email') {
             submitData.email = contactValue;
-        } else if (contactMethod === 'sms') {
+        } else if (contactMethod === 'sms' || contactMethod === 't.me') {
             submitData.tel = '+'+contactValue;
-        } else if (contactMethod === 't.me' || contactMethod === 'max') {
-            submitData.messanger_contact = contactValue;
         }
         
         // Валидация
@@ -346,7 +279,8 @@ export default function RegisterPage() {
                 throw new Error(response.message || 'Ошибка отправки');
             }
             
-            showAlert('Заявка успешно отправлена, с Вами свяжется администратор', 'success');
+            const targetText = submitData.target === 'register' ? 'регистрации' : 'восстановления пароля';
+            showAlert(`Заявка на ${targetText} успешно отправлена, с Вами свяжется администратор`, 'success');
             
             setTimeout(() => {
                 router.push(`/`);
@@ -363,8 +297,8 @@ export default function RegisterPage() {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         
-        // Специальная обработка для телефона
-        if (name === 'contactValue' && formData.messanger === 'sms') {
+        // Специальная обработка для телефона (для sms и t.me)
+        if (name === 'contactValue' && (formData.messanger === 'sms' || formData.messanger === 't.me')) {
             const formatted = formatPhoneNumber(value);
             setFormData(prev => ({
                 ...prev,
@@ -519,7 +453,6 @@ export default function RegisterPage() {
                                         <option value="sms">SMS (телефон)</option>
                                         <option value="email">Email</option>
                                         <option value="t.me">Telegram</option>
-                                        <option value="max">Max</option>
                                     </select>
                                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                         <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -533,8 +466,7 @@ export default function RegisterPage() {
                             <div className="group">
                                 <label htmlFor="contactValue" className="block text-sm font-medium text-gray-700 mb-2">
                                     {formData.messanger === 'email' ? 'Email' : 
-                                     formData.messanger === 't.me' ? 'Telegram username' :
-                                     formData.messanger === 'max' ? 'Max ID' : 'Телефон'} <RequiredSymbol></RequiredSymbol>
+                                     formData.messanger === 't.me' ? 'Телефон для Telegram' : 'Телефон'} <RequiredSymbol></RequiredSymbol>
                                 </label>
                                 <div className="relative">
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -556,19 +488,41 @@ export default function RegisterPage() {
                                 {errors.contactValue && (
                                     <p className="mt-1 text-sm text-red-600">{errors.contactValue}</p>
                                 )}
-                                {formData.messanger === 'sms' && (
+                                {(formData.messanger === 'sms' || formData.messanger === 't.me') && (
                                     <p className="mt-1 text-xs text-gray-500">
                                         Формат: +7 (XXX) XXX-XX-XX
                                     </p>
                                 )}
-                                {formData.messanger === 't.me' && (
-                                    <p className="mt-1 text-xs text-gray-500">
-                                        Username должен начинаться с @
-                                    </p>
-                                )}
                             </div>
-                            
-                            <input type="hidden" name="target" id='target' value='register' />
+
+                            {/* Цель обращения */}
+                            <div className="group">
+                                <label htmlFor="target" className="block text-sm font-medium text-gray-700 mb-2">
+                                    Цель обращения <RequiredSymbol></RequiredSymbol>
+                                </label>
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                        </svg>
+                                    </div>
+                                    <select 
+                                        name="target" 
+                                        id="target" 
+                                        className="block w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 appearance-none"
+                                        value={formData.target}
+                                        onChange={handleChange}
+                                    >
+                                        <option value="register">Регистрация</option>
+                                        <option value="refresh">Восстановление пароля</option>
+                                    </select>
+                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                        <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         
                         {/* Submit button */}

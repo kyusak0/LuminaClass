@@ -320,4 +320,22 @@ class GroupController extends Controller
             'message' => 'Студент успешно удален из группы'
         ]);
     }
+
+    public function changeTeacherGroups(Request $request, $id){
+        $tutor = Tutor::create([
+            'tutor_id' => $request->teacher_id, 
+            'supervised_group_id' => $id  
+        ]);
+
+        $this->logAction(
+            'Смена куратора группы',
+            'UPDATE',
+            auth()->id(),
+            $request->ip(),
+            [
+                'user_id' => $request->teacher_id, 
+                'supervised_group_id' => $id  
+            ]
+        );
+    }
 }

@@ -28,13 +28,13 @@ export default function BookingsPage() {
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState<string>('');
     const [alertMess, setAlertMess] = useState<{ content: any }>();
-    
+
     const auth = useAuth();
-    
+
     if (!auth) {
         return null;
     }
-    
+
     const { user, get } = auth;
 
     useEffect(() => {
@@ -47,11 +47,11 @@ export default function BookingsPage() {
         try {
             setLoading(true);
             const response = await get('get-bookings');
-            
+
             if (response && response.success === false) {
                 throw new Error(response.message);
             }
-            
+
             const bookingsData = response?.data.data || response.data || [];
             setBookings(bookingsData);
         } catch (error) {
@@ -73,7 +73,7 @@ export default function BookingsPage() {
             </div>
         );
         setAlertMess({ content: alertContent });
-        
+
         setTimeout(() => {
             setAlertMess(undefined);
         }, 5000);
@@ -138,19 +138,10 @@ export default function BookingsPage() {
                     }
                 },
                 {
-                    title: 'Почта',
-                    key: 'email',
+                    title: 'Обратная связь',
+                    key: 'contacts',
                     data: {
-                        value: booking.email,
-                        size: 2,
-                        isFilter: true
-                    }
-                },
-                {
-                    title: 'Телефон',
-                    key: 'tel',
-                    data: {
-                        value: booking.tel,
+                        value: booking.email || booking.tel,
                         size: 2,
                         isFilter: true
                     }
@@ -162,7 +153,7 @@ export default function BookingsPage() {
                         value: getStatusText(booking.status),
                         size: 1,
                         isFilter: true,
-                        add: `px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(booking.status)} inline-block`
+                        add: `w-full text-xs font-medium ${getStatusColor(booking.status)} inline-block`
                     }
                 }
             ]
@@ -222,51 +213,47 @@ export default function BookingsPage() {
 
             {/* Кликабельные карточки статистики */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                <div 
-                    className={`p-4 rounded-lg border cursor-pointer transition-all transform hover:scale-105 ${
-                        filterStatus === '' 
-                            ? 'bg-gray-200 border-gray-400 shadow-md' 
-                            : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                    }`}
+                <div
+                    className={`p-4 rounded-lg border cursor-pointer transition-all transform hover:scale-105 ${filterStatus === ''
+                        ? 'bg-gray-200 border-gray-400 shadow-md'
+                        : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                        }`}
                     onClick={() => handleStatusFilter('')}
                 >
                     <div className="text-sm text-gray-600 font-semibold">Всего заявок</div>
                     <div className="text-2xl font-bold text-gray-700">{stats.total}</div>
                     <div className="text-xs text-gray-500 mt-1">Все заявки</div>
                 </div>
-                
-                <div 
-                    className={`p-4 rounded-lg border cursor-pointer transition-all transform hover:scale-105 ${
-                        filterStatus === 'waiting' 
-                            ? 'bg-yellow-200 border-yellow-400 shadow-md' 
-                            : 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100'
-                    }`}
+
+                <div
+                    className={`p-4 rounded-lg border cursor-pointer transition-all transform hover:scale-105 ${filterStatus === 'waiting'
+                        ? 'bg-yellow-200 border-yellow-400 shadow-md'
+                        : 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100'
+                        }`}
                     onClick={() => handleStatusFilter('waiting')}
                 >
                     <div className="text-sm text-yellow-600 font-semibold">Ожидают</div>
                     <div className="text-2xl font-bold text-yellow-700">{stats.waiting}</div>
                     <div className="text-xs text-yellow-600 mt-1">Требуют внимания</div>
                 </div>
-                
-                <div 
-                    className={`p-4 rounded-lg border cursor-pointer transition-all transform hover:scale-105 ${
-                        filterStatus === 'done' 
-                            ? 'bg-green-200 border-green-400 shadow-md' 
-                            : 'bg-green-50 border-green-200 hover:bg-green-100'
-                    }`}
+
+                <div
+                    className={`p-4 rounded-lg border cursor-pointer transition-all transform hover:scale-105 ${filterStatus === 'done'
+                        ? 'bg-green-200 border-green-400 shadow-md'
+                        : 'bg-green-50 border-green-200 hover:bg-green-100'
+                        }`}
                     onClick={() => handleStatusFilter('done')}
                 >
                     <div className="text-sm text-green-600 font-semibold">Одобрены</div>
                     <div className="text-2xl font-bold text-green-700">{stats.done}</div>
                     <div className="text-xs text-green-600 mt-1">Успешно обработаны</div>
                 </div>
-                
-                <div 
-                    className={`p-4 rounded-lg border cursor-pointer transition-all transform hover:scale-105 ${
-                        filterStatus === 'canceled' 
-                            ? 'bg-red-200 border-red-400 shadow-md' 
-                            : 'bg-red-50 border-red-200 hover:bg-red-100'
-                    }`}
+
+                <div
+                    className={`p-4 rounded-lg border cursor-pointer transition-all transform hover:scale-105 ${filterStatus === 'canceled'
+                        ? 'bg-red-200 border-red-400 shadow-md'
+                        : 'bg-red-50 border-red-200 hover:bg-red-100'
+                        }`}
                     onClick={() => handleStatusFilter('canceled')}
                 >
                     <div className="text-sm text-red-600 font-semibold">Отклонены</div>

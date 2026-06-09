@@ -19,8 +19,8 @@ return new class extends Migration
             $table->string('tel')->nullable();
             $table->string('email')->nullable();
             $table->enum('status', ['canceled', 'waiting', 'done'])->default('waiting');
-            $table->string('target');
-            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete()->nullable();
+            $table->enum('target', ['register','refresh']);
+            $table->foreignId('user_id')->nullable()->constrained('users')->cascadeOnDelete();
             $table->timestamps();
         });
     }

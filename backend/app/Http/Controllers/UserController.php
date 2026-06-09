@@ -226,8 +226,8 @@ class UserController extends Controller
         $data = $request->validate([
             'name'=> ['nullable', 'string', 'max:50', 'regex:/^[\p{Cyrillic}\s]+$/u'],
             'surname'=> ['nullable', 'string', 'max:50', 'regex:/^[\p{Cyrillic}\s]+$/u'],
-            'email'=> ['nullable', 'string', 'email', 'max:255', 'unique:users,email'],
-            'tel'=> ['nullable', 'string', 'regex:/^\+7\d{10}$/'],
+            'email'=> ['sometimes', 'string', 'email', 'max:255'],
+            'tel'=> ['sometimes', 'string', 'regex:/^\+7\d{10}$/'],
             'target' => ['required', 'string'],
             'messanger'=> ['required', 'string'],
         ], [
@@ -236,7 +236,6 @@ class UserController extends Controller
             'surname.max' => 'Фамилия не более 50 символов',
             'surname.regex' => 'Фамилия только кириллица',
             'email.email' => 'Некорректный email',
-            'email.unique' => 'Email уже используется',
             'tel.regex' => 'Телефон в формате +7XXXXXXXXXX',
             'target.required' => 'Цель обязательна',
             'messanger.required' => 'Мессенджер обязателен',
@@ -247,7 +246,7 @@ class UserController extends Controller
         // Для бронирования логируем, если пользователь авторизован
         if (Auth::check()) {
             $this->logAction(
-                'Создание бронирования',
+                'Создание заявки',
                 'POST',
                 Auth::user()->id,
                 $request->ip(),

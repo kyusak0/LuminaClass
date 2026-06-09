@@ -11,7 +11,6 @@ import {
     FileText, 
     ClipboardCheck, 
     Home, 
-    Settings, 
     Shield, 
     Activity,
     ChevronLeft,
@@ -155,11 +154,6 @@ export default function AdminLayout({ children, title, subtitle, alertMess }: Ad
             href: '/marks',
             icon: ClipboardCheck,
             title: 'Журнал',
-        },
-        {
-            href: '/admin/settings',
-            icon: Settings,
-            title: 'Настройки',
         },
         {
             href: '/admin/logs',

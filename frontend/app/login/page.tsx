@@ -172,7 +172,7 @@ export default function LoginPage() {
               </label>
 
               <Link
-                href="/forgot-password"
+                href="/register"
                 className="text-sm font-medium text-main hover:text-green-500 transition-colors duration-200"
               >
                 Забыли пароль?

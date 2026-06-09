@@ -37,8 +37,8 @@ class TaskController extends Controller
             'group_id' => 'required|integer|exists:groups,id',
             'task_id' => 'required|integer|exists:files,id',
             'title' => 'required|string|max:255',
-            'description' => 'string',
-            'deadline' => 'required|string',
+            'description' => 'nullable|string',
+            'deadline' => 'nullable|string',
             'user_id' => 'required|exists:users,id'
         ]);
 

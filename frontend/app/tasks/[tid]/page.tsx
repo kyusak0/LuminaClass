@@ -19,8 +19,10 @@ import {
   Send, MessageSquare, Calendar, User, BookOpen, CheckCircle,
   AlertCircle, Loader2, Upload, FilePlus, Trash2, Archive,
   Image as ImageIcon, FileCode, FileSpreadsheet, FileAudio,
-  FileVideo, FileQuestion, Star, StarOff, ExternalLink, ChevronRight
+  FileVideo, FileQuestion, Star, StarOff, ExternalLink, ChevronRight,
+  GraduationCap, FolderOpen
 } from 'lucide-react';
+import Loader from "@/components/loader/Loader";
 
 // Типы
 interface TaskInfo {
@@ -43,8 +45,9 @@ interface AnswerData {
   task_id: number;
   students_comment: string | null;
   mark: number | null;
+  teacher_comment?: string;
   created_at: string;
-  user?: { id: number; name: string; email?: string };
+  user: { id: number; name: string; email?: string };
   file?: {
     id: number;
     original_name: string;
@@ -53,6 +56,56 @@ interface AnswerData {
     size: number;
   };
 }
+
+// Вспомогательные функции для работы с файлами
+const getCorrectMimeType = (mimeType: string, fileName: string): string => {
+  const extension = fileName?.split('.').pop()?.toLowerCase() || '';
+
+  if (extension === 'zip') return 'application/zip';
+  if (extension === 'rar') return 'application/x-rar-compressed';
+
+  const mimeMap: Record<string, string> = {
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'doc': 'application/msword',
+    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'xls': 'application/vnd.ms-excel',
+    'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'ppt': 'application/vnd.ms-powerpoint',
+    'pdf': 'application/pdf',
+    'txt': 'text/plain',
+    'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+    'png': 'image/png', 'gif': 'image/gif',
+    'webp': 'image/webp',
+    'mp4': 'video/mp4', 'mp3': 'audio/mpeg',
+  };
+
+  return mimeMap[extension] || mimeType;
+};
+
+const getFileTypeByExtension = (fileName: string, mimeType: string): string => {
+  const extension = fileName?.split('.').pop()?.toLowerCase() || '';
+
+  if (extension === 'zip' || extension === 'rar' || mimeType?.includes('zip') || mimeType?.includes('rar')) {
+    return 'archive';
+  }
+  
+  if (['doc', 'docx'].includes(extension)) return 'word';
+  if (['xls', 'xlsx'].includes(extension)) return 'excel';
+  if (['ppt', 'pptx'].includes(extension)) return 'presentation';
+  if (['pdf'].includes(extension)) return 'pdf';
+  if (['txt', 'csv', 'json', 'xml', 'html', 'css', 'js', 'md', 'log'].includes(extension)) return 'text';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(extension)) return 'image';
+  if (['mp4', 'avi', 'mov', 'mkv'].includes(extension)) return 'video';
+  if (['mp3', 'wav', 'ogg', 'flac'].includes(extension)) return 'audio';
+
+  if (mimeType?.startsWith('text/')) return 'text';
+  if (mimeType?.startsWith('image/')) return 'image';
+  if (mimeType?.startsWith('video/')) return 'video';
+  if (mimeType?.startsWith('audio/')) return 'audio';
+  if (mimeType === 'application/pdf') return 'pdf';
+
+  return 'other';
+};
 
 export default function TaskPage() {
   const params = useParams();
@@ -68,35 +121,17 @@ export default function TaskPage() {
   const [answers, setAnswers] = useState<AnswerData[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedAnswer, setSelectedAnswer] = useState<AnswerData | null>(null);
+  const [showGradeModal, setShowGradeModal] = useState(false);
+  const [gradingComment, setGradingComment] = useState('');
+  const [gradingMark, setGradingMark] = useState<string>('н/а');
+  const [gradingSubmitting, setGradingSubmitting] = useState(false);
 
   // Состояния для FileViewer
   const [showFileViewer, setShowFileViewer] = useState(false);
   const [viewingFile, setViewingFile] = useState<any>(null);
   const [showArchiveViewer, setShowArchiveViewer] = useState(false);
   const [archiveFileData, setArchiveFileData] = useState<any>(null);
-
-  // Получение правильного MIME типа
-  const getCorrectMimeType = (mimeType: string, fileName: string): string => {
-    const extension = fileName?.split('.').pop()?.toLowerCase() || '';
-
-    if (extension === 'zip' || extension === 'rar') return 'application/zip';
-
-    const mimeMap: Record<string, string> = {
-      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'doc': 'application/msword',
-      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'xls': 'application/vnd.ms-excel',
-      'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'ppt': 'application/vnd.ms-powerpoint',
-      'pdf': 'application/pdf',
-      'txt': 'text/plain',
-      'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
-      'png': 'image/png', 'gif': 'image/gif',
-      'mp4': 'video/mp4', 'mp3': 'audio/mpeg',
-    };
-
-    return mimeMap[extension] || mimeType;
-  };
 
   // Загрузка информации о задании
   const getTaskInfo = useCallback(async (id: number) => {
@@ -279,8 +314,11 @@ export default function TaskPage() {
 
   // Открытие файла в просмотрщике
   const openFileViewer = (file: any) => {
-    const extension = file.original_name?.split('.').pop()?.toLowerCase() || '';
-
+    const isArchive = file.original_name?.endsWith('.zip') || 
+                     file.original_name?.endsWith('.rar') ||
+                     file.mime_type?.includes('zip') ||
+                     file.mime_type?.includes('rar');
+    
     const viewerData = {
       id: file.id,
       original_name: file.original_name,
@@ -289,51 +327,64 @@ export default function TaskPage() {
       url: file.path ? `${NEXT_PUBLIC_API_URL}/storage/${file.path}` : file.url,
       serve_url: `${NEXT_PUBLIC_API_URL}/api/files/${file.id}/serve`,
       file_type: getFileTypeByExtension(file.original_name, file.mime_type),
+      is_archive: isArchive,
     };
 
-    console.log('📂 Viewer data:', viewerData);
-
     setViewingFile(viewerData);
-    setShowFileViewer(true);
+    
+    if (isArchive) {
+      setArchiveFileData({
+        id: file.id,
+        original_name: file.original_name,
+        mime_type: file.mime_type || 'application/zip',
+        size: file.size || 0,
+        url: file.path ? `${NEXT_PUBLIC_API_URL}/storage/${file.path}` : file.url,
+        serve_url: `${NEXT_PUBLIC_API_URL}/api/files/${file.id}/serve`,
+      });
+      setShowArchiveViewer(true);
+    } else {
+      setShowFileViewer(true);
+    }
   };
 
-  // ✅ Функция определения типа по имени файла и MIME
-  function getFileTypeByExtension(fileName: string, mimeType: string): string {
-    const extension = fileName?.split('.').pop()?.toLowerCase() || '';
+  // Открытие модального окна для оценивания
+  const openGradeModal = (answer: AnswerData) => {
+    setSelectedAnswer(answer);
+    setGradingComment(answer.teacher_comment || '');
+    setGradingMark(answer.mark?.toString() || 'н/а');
+    setShowGradeModal(true);
+  };
 
-    // Сначала проверяем расширение
-    if (['txt', 'csv', 'json', 'xml', 'html', 'css', 'js', 'md', 'log'].includes(extension)) {
-      return 'text';
+  // Отправка оценки
+  const submitGrade = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!post || !selectedAnswer || gradingSubmitting) return;
+
+    setGradingSubmitting(true);
+
+    try {
+      const newData = {
+        id: selectedAnswer.id,
+        mark: gradingMark === 'н/а' ? null : parseInt(gradingMark),
+        teachers_comment: gradingComment
+      };
+
+      await post('/grade-task', newData);
+      showAlert('Оценка выставлена!', 'Оценка успешно сохранена', 'success');
+      setShowGradeModal(false);
+      await getTaskInfo(task!.id);
+    } catch (error: any) {
+      showAlert('Ошибка', error.message || 'Не удалось сохранить оценку', 'error');
+    } finally {
+      setGradingSubmitting(false);
     }
-
-    if (['zip', 'rar'].includes(extension)) return 'archive';
-    if (['doc', 'docx'].includes(extension)) return 'word';
-    if (['xls', 'xlsx'].includes(extension)) return 'excel';
-    if (['ppt', 'pptx'].includes(extension)) return 'presentation';
-    if (['pdf'].includes(extension)) return 'pdf';
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(extension)) return 'image';
-    if (['mp4', 'avi', 'mov'].includes(extension)) return 'video';
-    if (['mp3', 'wav', 'ogg'].includes(extension)) return 'audio';
-
-    // Затем MIME тип
-    if (mimeType?.startsWith('text/')) return 'text';
-    if (mimeType?.startsWith('image/')) return 'image';
-    if (mimeType?.startsWith('video/')) return 'video';
-    if (mimeType?.startsWith('audio/')) return 'audio';
-    if (mimeType === 'application/pdf') return 'pdf';
-    if (mimeType?.includes('zip') || mimeType?.includes('rar')) return 'archive';
-    if (mimeType?.includes('word') || mimeType?.includes('document')) return 'word';
-    if (mimeType?.includes('excel') || mimeType?.includes('spreadsheet')) return 'excel';
-    if (mimeType?.includes('powerpoint') || mimeType?.includes('presentation')) return 'presentation';
-
-    return 'other';
-  }
+  };
 
   // Обработчик файлов из архива
   const handleFileFromArchive = (file: any) => {
     setViewingFile({
       ...file,
-      file_type: file.file_type || getFileTypeByExtension(file.original_name, file.mime_type),
+      file_type: getFileTypeByExtension(file.original_name, file.mime_type),
     });
     setShowFileViewer(true);
   };
@@ -355,11 +406,19 @@ export default function TaskPage() {
     return icons[type] || <FileIcon className="w-5 h-5 text-gray-400" />;
   };
 
-  // Таблица ответов
+  // Получение цвета для оценки
+  const getMarkColor = (mark: number | null) => {
+    if (mark === null) return 'text-gray-400';
+    if (mark >= 4) return 'text-green-600 font-bold';
+    if (mark >= 3) return 'text-yellow-600 font-bold';
+    return 'text-red-600 font-bold';
+  };
+
+  // Формирование данных для SearchTable - только имя студента, оценка и действия
   const answerRecords = useMemo((): SearchRecord[] => {
     return answers.map(item => {
       let markValue = '—';
-      let markClass = 'text-gray-400';
+      let markClass = '';
 
       if (item.mark !== null && item.mark !== undefined) {
         markValue = item.mark.toString();
@@ -370,36 +429,77 @@ export default function TaskPage() {
 
       return {
         id: item.id,
-        task_id: item.task_id,
         columns: [
           {
-            title: 'Ученик', key: 'studentNameField',
-            data: { value: item.user?.name || 'Неизвестно', size: 2, isFilter: true, add: 'font-medium' }
+            title: 'Ученик',
+            key: 'student',
+            data: { 
+              value: item.user.name || 'Неизвестно', 
+              size: 6, 
+              isFilter: true, 
+              add: 'font-medium' 
+            }
           },
           {
-            title: 'Дата сдачи', key: 'created_at',
-            data: { value: item.created_at ? new Date(item.created_at).toLocaleString('ru-RU') : '—', size: 2, isFilter: true }
-          },
-          {
-            title: 'Комментарий', key: 'comment',
-            data: { value: item.students_comment || '—', size: 3, add: 'text-gray-700 max-w-[250px] truncate' }
-          },
-          {
-            title: 'Файл ответа', key: 'answer_file',
-            data: { value: item.file?.original_name || '—', size: 2, add: item.file ? 'text-blue-600 cursor-pointer hover:underline' : 'text-gray-400' }
-          },
-          {
-            title: 'Оценка', key: 'mark',
-            data: { value: markValue, size: 1, add: markClass }
-          },
-          {
-            title: '', key: 'actions',
-            data: { value: '→', size: 0.5, add: 'text-center' }
+            title: 'Оценка',
+            key: 'mark',
+            data: { 
+              value: markValue, 
+              size: 3, 
+              add: markClass 
+            }
           }
         ]
       };
     });
   }, [answers]);
+
+  // Действия для SearchTable
+  const tableActions = [
+    {
+      label: 'Просмотр файла',
+      icon: <Eye size={20} />,
+      onClick: (record: SearchRecord) => {
+        const answer = answers.find(a => a.id === record.id);
+        if (answer?.file) openFileViewer(answer.file);
+        else showAlert('Внимание', 'Нет файла для просмотра', 'error');
+      },
+      className: 'text-blue-600 hover:bg-blue-50',
+      getLabel: (record: SearchRecord) => {
+        const answer = answers.find(a => a.id === record.id);
+        return answer?.file ? 'Просмотр' : 'Нет файла';
+      }
+    },
+    {
+      label: 'Оценить',
+      icon: <Star size={20} />,
+      onClick: (record: SearchRecord) => {
+        const answer = answers.find(a => a.id === record.id);
+        if (answer) openGradeModal(answer);
+      },
+      className: `text-yellow-600 hover:bg-yellow-50 ${user.role == 'teacher' ? '' : 'hidden'}`
+    },
+    {
+      label: 'Скачать',
+      icon: <Download size={20} />,
+      onClick: (record: SearchRecord) => {
+        const answer = answers.find(a => a.id === record.id);
+        if (answer?.file) downloadFile(answer.file.id, answer.file.original_name);
+        else showAlert('Внимание', 'Нет файла для скачивания', 'error');
+      },
+      className: 'text-green-600 hover:bg-green-50',
+      getLabel: (record: SearchRecord) => {
+        const answer = answers.find(a => a.id === record.id);
+        return answer?.file ? 'Скачать' : 'Нет файла';
+      }
+    },
+    {
+      label: 'Подробнее',
+      icon: <ExternalLink size={20} />,
+      onClick: (record: SearchRecord) => router.push(`/answers/${record.id}`),
+      className: 'text-gray-600 hover:bg-gray-50'
+    }
+  ];
 
   useEffect(() => {
     if (authLoading) return;
@@ -408,14 +508,7 @@ export default function TaskPage() {
   }, [user, authLoading, params?.tid, getTaskInfo]);
 
   if (authLoading || loading) {
-    return (
-      <MainLayout>
-        <div className="h-screen flex flex-col items-center justify-center">
-          <Loader2 className="w-12 h-12 text-main animate-spin mb-4" />
-          <div className="text-lg text-gray-500">Загрузка...</div>
-        </div>
-      </MainLayout>
-    );
+    return <Loader />;
   }
 
   if (!user || !task) return null;
@@ -427,7 +520,7 @@ export default function TaskPage() {
     <MainLayout alertMess={alertMess?.content}>
       {/* FileViewer Modal */}
       {showFileViewer && viewingFile && (
-        <div className="fixed inset-0 z-50 bg-white">
+        <div className="fixed inset-0 z-50 bg-white overflow-auto">
           <FileViewer
             fileData={viewingFile}
             onClose={() => {
@@ -443,12 +536,119 @@ export default function TaskPage() {
       {showArchiveViewer && archiveFileData && (
         <ArchiveViewer
           archive={archiveFileData}
-          onClose={() => setShowArchiveViewer(false)}
+          onClose={() => {
+            setShowArchiveViewer(false);
+            setViewingFile(null);
+          }}
           onFileOpen={handleFileFromArchive}
           onFileExtracted={(newFile) => {
             showAlert('Файл извлечен', newFile.original_name, 'success');
           }}
         />
+      )}
+
+      {/* Modal для оценивания ответа */}
+      {showGradeModal && selectedAnswer && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-auto">
+            <div className="bg-green-600 px-6 py-4 rounded-t-xl flex justify-between items-center">
+              <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                <Star className="w-5 h-5" />
+                Оценить ответ
+              </h3>
+              <button
+                onClick={() => setShowGradeModal(false)}
+                className="text-white hover:text-gray-200 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <form onSubmit={submitGrade} className="p-6 space-y-6">
+              {/* Информация об ученике */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <User className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm text-gray-500">Ученик:</span>
+                </div>
+                <p className="font-medium text-gray-900">{selectedAnswer.user.name}</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <Calendar className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm text-gray-500">
+                    Дата сдачи: {new Date(selectedAnswer.created_at).toLocaleString('ru-RU')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Комментарий ученика */}
+              {selectedAnswer.students_comment && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4" />
+                    Комментарий ученика
+                  </label>
+                  <div className="bg-gray-50 rounded-lg p-3 text-gray-700 text-sm">
+                    {selectedAnswer.students_comment}
+                  </div>
+                </div>
+              )}
+
+              {/* Комментарий учителя */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Комментарий учителя
+                </label>
+                <textarea
+                  value={gradingComment}
+                  onChange={(e) => setGradingComment(e.target.value)}
+                  rows={4}
+                  placeholder="Введите комментарий к работе..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition resize-none"
+                />
+              </div>
+
+              {/* Оценка */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Оценка
+                </label>
+                <select
+                  value={gradingMark}
+                  onChange={(e) => setGradingMark(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition bg-white"
+                >
+                  <option value="н/а">— Не оценено —</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                </select>
+              </div>
+
+              {/* Кнопки */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowGradeModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  disabled={gradingSubmitting}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {gradingSubmitting ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Сохранение...</>
+                  ) : (
+                    <><Star className="w-4 h-4" /> Сохранить оценку</>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       <div className="min-h-screen bg-gray-50">
@@ -503,7 +703,7 @@ export default function TaskPage() {
                       <div className="flex gap-2 justify-center">
                         {isZipFile ? (
                           <button
-                            onClick={() => setShowArchiveViewer(true)}
+                            onClick={() => openFileViewer({ id: task.fileId, original_name: task.fileName, mime_type: task.fileType, path: task.fileUrl, size: task.fileSize })}
                             className="px-4 py-2 bg-main text-white rounded-lg hover:bg-main-dark transition-colors flex items-center gap-2 text-sm"
                           >
                             <FolderArchive className="w-4 h-4" />
@@ -544,14 +744,10 @@ export default function TaskPage() {
                   </p>
                 </div>
               </div>
-
             </div>
 
             {/* Правая колонка - информация и форма */}
             <div className="lg:col-span-3 space-y-6">
-              {/* Описание */}
-
-
               {/* Форма отправки (для учеников) */}
               {!isTeacher && (
                 <div className="bg-white rounded-xl shadow-lg p-6">
@@ -627,7 +823,7 @@ export default function TaskPage() {
                 </div>
               )}
 
-              {/* Таблица ответов (для учителя) */}
+              {/* Таблица ответов (для учителя) - упрощенная */}
               {isTeacher && (
                 <div className="bg-white rounded-xl shadow-lg overflow-hidden">
                   <div className="bg-main px-4 sm:px-6 py-3 flex justify-between items-center">
@@ -647,31 +843,12 @@ export default function TaskPage() {
                     {answers.length > 0 ? (
                       <SearchTable
                         searchProps={answerRecords}
-                        actions={[
-                          {
-                            label: 'Просмотр',
-                            icon: <Eye size={24} />,
-                            onClick: (record) => {
-                              const answer = answers.find(a => a.id === record.id);
-                              if (answer?.file) openFileViewer(answer.file);
-                              else showAlert('Внимание', 'Нет файла', 'error');
-                            },
-                            className: 'text-main',
-                            getLabel: (record) => {
-                              const answer = answers.find(a => a.id === record.id);
-                              return answer?.file ? 'Просмотр' : 'Нет файла';
-                            }
-                          },
-                          {
-                            label: 'Перейти',
-                            icon: <ExternalLink size={24} />,
-                            className: 'text-main',
-                            onClick: (record) => router.push(`/answers/${record.id}`),
-                            getLabel: () => 'К ответу'
-                          }
-                        ]}
-                        compactView={true}
-                        onRowClick={(record) => router.push(`/answers/${record.id}`)}
+                        actions={tableActions}
+                        compactView={false}
+                        hideSearch={true}
+                        hideFilters={true}
+                        studentNameField="Ученик"
+                        gradeField="Оценка"
                       />
                     ) : (
                       <div className="text-center py-12 text-gray-400">

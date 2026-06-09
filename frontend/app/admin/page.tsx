@@ -10,7 +10,6 @@ import {
     BookOpen,
     FileText,
     ClipboardCheck,
-    Settings,
     Activity,
     Shield,
     TrendingUp,
@@ -26,7 +25,7 @@ export default function AdminPanel() {
     const { user, get, post, loading } = auth;
 
     const [stats, setStats] = useState({
-        registrations: 0,
+        bookings: 0,
         users: 0,
         groups: 0,
         tasks: 0
@@ -38,8 +37,8 @@ export default function AdminPanel() {
         const fetchStats = async () => {
             try {
                 // Получаем заявки на регистрацию (pending статус)
-                const registrationsRes = await get("/get-registrations");
-                const registrationsCount = registrationsRes?.data?.data?.length || 0;
+                const bookingsRes = await get("/get-bookings");
+                const bookingsCount = bookingsRes?.data?.data?.length || 0;
 
                 // Получаем всех пользователей
                 const usersRes = await get("/get-users");
@@ -54,7 +53,7 @@ export default function AdminPanel() {
                 const tasksCount = tasksRes?.data?.data?.length || 0;
 
                 setStats({
-                    registrations: registrationsCount,
+                    bookings: bookingsCount,
                     users: usersCount,
                     groups: groupsCount,
                     tasks: tasksCount
@@ -119,14 +118,6 @@ export default function AdminPanel() {
             bgColor: 'bg-red-50'
         },
         {
-            href: '/admin/settings',
-            icon: Settings,
-            title: 'Настройки',
-            description: 'Настройки системы',
-            color: 'text-gray-500',
-            bgColor: 'bg-gray-50'
-        },
-        {
             href: '/admin/logs',
             icon: Activity,
             title: 'Логи',
@@ -139,9 +130,9 @@ export default function AdminPanel() {
     const statsCards = [
         {
             label: 'Всего заявок',
-            value: stats.registrations.toString(),
+            value: stats.bookings.toString(),
             icon: UserPlus,
-            trend: stats.registrations > 0 ? `+${stats.registrations}` : '0',
+            trend: stats.bookings > 0 ? `+${stats.bookings}` : '0',
             color: 'text-blue-600',
             borderColor: 'border-blue-500',
             bgColor: 'bg-blue-50'

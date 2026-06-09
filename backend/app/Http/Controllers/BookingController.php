@@ -37,17 +37,16 @@ class BookingController extends Controller
         ]);
     }
     
-    public function editBooking(Request $request){
+    public function editBooking(Request $request, $id){
         $validated = $request->validate([
-            'id' => 'required|integer|exists:bookings,id',
             'status' => 'required|string',
         ]);
         
         // Получаем старый статус до обновления
-        $oldBooking = Booking::find($validated['id']);
+        $oldBooking = Booking::find($id);
         $oldStatus = $oldBooking ? $oldBooking->status : null;
         
-        $updated = Booking::where('id', $validated['id'])
+        $updated = Booking::where('id', $id)
             ->update(['status' => $validated['status']]);
         
         if ($updated) {
@@ -58,7 +57,7 @@ class BookingController extends Controller
                 auth()->id(),
                 $request->ip(),
                 [
-                    'booking_id' => $validated['id'],
+                    'booking_id' => $id,
                     'old_status' => $oldStatus,
                     'new_status' => $validated['status']
                 ]
@@ -77,7 +76,7 @@ class BookingController extends Controller
             auth()->id(),
             $request->ip(),
             [
-                'booking_id' => $validated['id'],
+                'booking_id' => $id,
                 'status' => $validated['status'],
                 'error' => 'Не удалось обновить заявку'
             ]
