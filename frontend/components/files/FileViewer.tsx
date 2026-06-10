@@ -616,7 +616,12 @@ function TextPreview({ serveUrl, token }: { serveUrl: string; token?: string }) 
     loadText();
   }, [serveUrl, token]);
 
-  if (loading) return <Loader />;
+  if (loading) return (
+    <div className="h-full w-full flex flex-col items-center justify-center">
+      <div className="text-lg text-gray-500">Загрузка данных...</div>
+      <div className="mt-4 w-16 h-16 border-4 border-main border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  );
   if (error) return <div className="text-center py-12 text-red-500">{error}</div>;
 
   return (

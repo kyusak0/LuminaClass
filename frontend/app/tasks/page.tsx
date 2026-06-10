@@ -123,7 +123,7 @@ export default function TaskPage() {
             },
         });
         
-        return response.data.file_id;
+        return response.data.file.id;
     };
 
     const createTask = async (e: FormEvent) => {
@@ -153,11 +153,11 @@ export default function TaskPage() {
                 }
             } else if (selectedFiles.length > 0) {
                 if (selectedFiles.length === 1) {
-                    const fileName = prompt(`Название для файла \n по умолчанию: ${selectedFiles[0].name}`) || selectedFiles[0].name;
+                    const fileName = selectedFiles[0].name;
                     fileId = await uploadFile(selectedFiles[0], fileName);
                 } else if (selectedFiles.length > 1) {
                     const zipFile = await createZipArchive(selectedFiles);
-                    const fileName = prompt('Название для архива', zipFile.name) || zipFile.name;
+                    const fileName = zipFile.name;
                     fileId = await uploadFile(zipFile, fileName);
                 }
             }
@@ -189,7 +189,7 @@ export default function TaskPage() {
                         </div>
                     )}
                     <div className="text-xs text-gray-500">
-                        в {new Date().toLocaleTimeString()}, {new Date().toLocaleDateString()}
+                        в {new Date().toLocaleTimeString('RU-ru')}, {new Date().toLocaleDateString('RU-ru')}
                     </div>
                 </div>
             );
@@ -203,7 +203,7 @@ export default function TaskPage() {
                     <div>❌ Ошибка при создании задания:</div>
                     <div className="font-semibold my-1">{error.response?.data?.message || error.message || 'Неизвестная ошибка'}</div>
                     <div className="text-xs text-gray-500">
-                        в {new Date().toLocaleTimeString()}, {new Date().toLocaleDateString()}
+                        в {new Date().toLocaleTimeString('RU-ru')}, {new Date().toLocaleDateString('RU-ru')}
                     </div>
                 </div>
             );
@@ -295,7 +295,7 @@ export default function TaskPage() {
                         title: 'Срок сдачи',
                         key: 'deadline',
                         data: {
-                            value: item.deadline,
+                            value: item?.deadline ? new Date(item?.deadline)?.toLocaleDateString('ru-RU') : null,
                             size: 2,
                             add: `${Date.parse(item.deadline) <= Date.now() ? 'text-red-600' : ''}`
                         }

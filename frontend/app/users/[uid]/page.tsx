@@ -586,7 +586,7 @@ export default function UserPage() {
 
           {/* Задать вопрос */}
           <Link
-            href={`/chats/11`}
+            href={`/chat/11`}
             className="bg-gradient-to-br from-main to-main-hover rounded-2xl shadow-sm p-4 sm:p-6 text-white hover:shadow-lg transition-all group"
           >
             <div className="flex items-center justify-between">

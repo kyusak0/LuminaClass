@@ -189,7 +189,6 @@ export default function ViewerPage() {
     });
   };
 
-  // ✅ ОБРАБОТЧИК ФАЙЛОВ ИЗ АРХИВА
   const handleFileFromArchive = (file: any) => {
     console.log('📦 File from archive:', file);
 

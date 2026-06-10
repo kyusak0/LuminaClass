@@ -48,7 +48,7 @@ class ChatController extends Controller
         $isStudent = $group->students()->where('student_id', $user->id)->exists();
         $isTeacher = $group->teacher && $group->teacher->tutor_id === $user->id;
         
-        if (!$isStudent && !$isTeacher && Auth::user()->role !== 'admin') {
+        if (!$isStudent && !$isTeacher && Auth::user()->role !== 'admin' && $group->slug !== 'support') {
             return response()->json([
                 'success' => false,
                 'error' => 'Access denied'

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import SearchTable, { SearchRecord } from "@/components/searchTable/SearchTable";
-import { Lock, Unlock, Users, GraduationCap, User, Users2, Shield, UserX, Loader2 } from 'lucide-react';
+import { Lock, Unlock, Users, GraduationCap, User, Users2, Shield, UserX, Loader2, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 
 interface AppUser {
     id: number;
@@ -22,6 +22,13 @@ export default function UserPanel() {
     const [users, setUsers] = useState<AppUser[]>([]);
     const [loading, setLoading] = useState(true);
     const [filterRole, setFilterRole] = useState<string>('');
+    const [alertMess, setAlertMess] = useState<{ content: any } | null>(null);
+    const [confirmDialog, setConfirmDialog] = useState<{
+        show: boolean;
+        message: string;
+        onConfirm: () => void;
+        onCancel: () => void;
+    } | null>(null);
 
     const auth = useAuth();
 
@@ -30,6 +37,44 @@ export default function UserPanel() {
     }
 
     const { user, get, post } = auth;
+
+    const showAlert = (message: string, isError: boolean = false) => {
+        const alertContent = (
+            <div className="p-3">
+                <div className="flex items-center gap-2 font-semibold mb-2">
+                    {isError ? (
+                        <XCircle className="w-5 h-5 text-red-500" />
+                    ) : (
+                        <CheckCircle className="w-5 h-5 text-green-500" />
+                    )}
+                    <span>{isError ? 'Ошибка' : 'Успешно'}</span>
+                </div>
+                <div className="text-sm">{message}</div>
+                <div className="text-xs text-gray-500 mt-2">
+                    {new Date().toLocaleString()}
+                </div>
+            </div>
+        );
+        setAlertMess({ content: alertContent });
+        
+        setTimeout(() => {
+            setAlertMess(null);
+        }, 5000);
+    };
+
+    const showConfirm = (message: string, onConfirm: () => void) => {
+        setConfirmDialog({
+            show: true,
+            message,
+            onConfirm: () => {
+                setConfirmDialog(null);
+                onConfirm();
+            },
+            onCancel: () => {
+                setConfirmDialog(null);
+            }
+        });
+    };
 
     useEffect(() => {
         if (user) {
@@ -53,6 +98,7 @@ export default function UserPanel() {
             setUsers(usersData);
         } catch (error) {
             console.error('Ошибка загрузки пользователей:', error);
+            showAlert('Ошибка загрузки пользователей', true);
             setUsers([]);
         } finally {
             setLoading(false);
@@ -69,10 +115,15 @@ export default function UserPanel() {
             }
 
             await loadUsers();
+            
+            const targetUser = users.find(u => u.id === userId);
+            const actionText = isBlocked ? 'разблокирован' : 'заблокирован';
+            showAlert(`Пользователь ${targetUser?.name || userId} успешно ${actionText}`);
+            
             return true;
         } catch (error: any) {
             console.error('Ошибка при блокировке:', error);
-            alert(error.message || 'Ошибка при выполнении операции');
+            showAlert(error.message || 'Ошибка при выполнении операции', true);
             return false;
         }
     };
@@ -98,19 +149,16 @@ export default function UserPanel() {
         if (user.is_blocked) {
             return 'text-red-600 bg-red-50';
         }
-        return 'text-main bg-main/10';
+        return 'text-green-600 bg-green-50';
     };
 
-    // Фильтруем пользователей по роли и статусу блокировки
     const filteredUsers = useMemo(() => {
         if (!Array.isArray(users)) {
-            console.warn('users не является массивом:', users);
             return [];
         }
 
         let filtered = [...users];
 
-        // Фильтрация по роли или статусу блокировки
         if (filterRole === 'blocked') {
             filtered = filtered.filter(u => u && u.is_blocked === true);
         } else if (filterRole) {
@@ -184,7 +232,6 @@ export default function UserPanel() {
         router.push(`/users/${record.id}`);
     }, [router]);
 
-    // Actions с иконками вместо смайликов
     const actions = useMemo(() => {
         const baseActions: any[] = [];
 
@@ -197,21 +244,21 @@ export default function UserPanel() {
                     if (!targetUser) return;
 
                     if (targetUser.role === 'admin') {
-                        alert('Нельзя блокировать администратора');
+                        showAlert('Нельзя блокировать администратора', true);
                         return;
                     }
                     if (targetUser.id === user.id) {
-                        alert('Нельзя заблокировать самого себя');
+                        showAlert('Нельзя заблокировать самого себя', true);
                         return;
                     }
 
                     const isBlocked = targetUser.is_blocked || false;
                     const actionText = isBlocked ? 'разблокировать' : 'заблокировать';
-                    const confirmMessage = `Вы уверены, что хотите ${actionText} пользователя ${targetUser.name}?`;
-
-                    if (confirm(confirmMessage)) {
-                        await toggleBlockUser(record.id as number, isBlocked);
-                    }
+                    
+                    showConfirm(
+                        `Вы уверены, что хотите ${actionText} пользователя ${targetUser.name}?`,
+                        () => toggleBlockUser(record.id as number, isBlocked)
+                    );
                 },
                 className: (record: SearchRecord) => {
                     const targetUser = users.find(u => u && u.id === record.id);
@@ -277,7 +324,36 @@ export default function UserPanel() {
     }
 
     return (
-        <AdminLayout>
+        <AdminLayout alertMess={alertMess?.content}>
+            {/* Кастомный диалог подтверждения */}
+            {confirmDialog?.show && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+                        <div className="p-6">
+                            <div className="flex items-center gap-3 mb-4">
+                                <AlertCircle className="w-6 h-6 text-orange-500" />
+                                <h3 className="text-lg font-semibold text-gray-900">Подтверждение действия</h3>
+                            </div>
+                            <p className="text-gray-600 mb-6">{confirmDialog.message}</p>
+                            <div className="flex gap-3 justify-end">
+                                <button
+                                    onClick={confirmDialog.onCancel}
+                                    className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium transition-colors"
+                                >
+                                    Отмена
+                                </button>
+                                <button
+                                    onClick={confirmDialog.onConfirm}
+                                    className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors font-medium"
+                                >
+                                    Подтвердить
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="mb-8">
                 <h2 className="text-4xl font-bold">
                     <Link href='/admin' className="hover:text-green-600 transition-colors">
@@ -291,7 +367,6 @@ export default function UserPanel() {
                 </p>
             </div>
 
-            {/* Статистика - кликабельные кнопки фильтрации с иконками */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
                 <div
                     className={`p-4 rounded-lg border cursor-pointer transition-colors ${filterRole === '' ? 'bg-gray-200 border-gray-400' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}
@@ -355,7 +430,6 @@ export default function UserPanel() {
                 </div>
             </div>
 
-            {/* Таблица с кликабельными строками */}
             <div className="bg-white rounded-lg shadow-sm">
                 <SearchTable
                     searchProps={searchTableData}

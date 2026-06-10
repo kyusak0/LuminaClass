@@ -71,7 +71,7 @@ export function WordViewer({ fileId, token, fileBlob, isTemp, content: initialCo
   if (error) return <ErrorDisplay message={error} />;
 
   return (
-    <div className="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-sm max-h-[600px]">
+    <div className="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-sm overflow-auto max-h-[600px]">
       <div dangerouslySetInnerHTML={{ __html: content }} />
     </div>
   );
@@ -206,7 +206,12 @@ export function PowerPointViewer({ fileId, token, fileBlob, isTemp }: any) {
   }, [fileId, fileBlob, isTemp, token]);
 
 
-  if (loading) return <Loader />;
+  if (loading) return (
+    <div className="h-full w-full flex flex-col items-center justify-center">
+      <div className="text-lg text-gray-500">Загрузка данных...</div>
+      <div className="mt-4 w-16 h-16 border-4 border-main border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  );
   if (error) return <div className="text-red-500 text-center p-8">{error}</div>;
   if (!slidesHtml.length) return <div className="text-center p-8">В презентации нет слайдов</div>;
 
@@ -214,7 +219,7 @@ export function PowerPointViewer({ fileId, token, fileBlob, isTemp }: any) {
     <div className="flex flex-col items-center w-full">
       {/* Здесь будут все слайды вашей презентации один за другим */}
       {slidesHtml.map((slide, index) => (
-        <div key={index} className="mb-8 w-full shadow-lg rounded-lg overflow-hidden">
+        <div key={index} className="mb-8 w-full shadow-lg rounded-lg overflow-auto">
           {/* ВАЖНО: dangerouslySetInnerHTML вставляет HTML-код слайда */}
           <div dangerouslySetInnerHTML={{ __html: slide }} />
         </div>
@@ -228,7 +233,10 @@ export function PowerPointViewer({ fileId, token, fileBlob, isTemp }: any) {
 
 function LoadingSpinner() {
   return (
-    <Loader />
+    <div className="h-full w-full flex flex-col items-center justify-center">
+      <div className="text-lg text-gray-500">Загрузка данных...</div>
+      <div className="mt-4 w-16 h-16 border-4 border-main border-t-transparent rounded-full animate-spin"></div>
+    </div>
   );
 }
 

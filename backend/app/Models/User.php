@@ -115,6 +115,14 @@ class User extends Authenticatable
         ]);
     }
 
+    public function unblock(): void
+    {
+        $this->update([
+            'is_blocked' => false,
+            'blocked_at' => null,
+        ]);
+    }
+
     public function getBlockReason(): ?string
     {
         if (!$this->is_blocked) {
