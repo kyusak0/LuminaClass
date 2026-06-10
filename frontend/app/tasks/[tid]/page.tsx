@@ -57,6 +57,14 @@ interface AnswerData {
   };
 }
 
+interface ExistingFile {
+  id: number;
+  original_name: string;
+  mime_type: string;
+  size: number;
+  path: string;
+}
+
 export default function TaskPage() {
   const params = useParams();
   const router = useRouter();
@@ -66,6 +74,10 @@ export default function TaskPage() {
   const [loading, setLoading] = useState(true);
   const [disabled, setDisabled] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [selectedExistingFile, setSelectedExistingFile] = useState<ExistingFile | null>(null);
+  const [existAns, setExistAns] = useState<Boolean>(false);
+  const [useExistingFile, setUseExistingFile] = useState(false);
+  const [existingFiles, setExistingFiles] = useState<ExistingFile[]>([]);
   const [alertMess, setAlertMess] = useState<{ content: any }>();
   const [task, setTask] = useState<TaskInfo | null>(null);
   const [answers, setAnswers] = useState<AnswerData[]>([]);
@@ -97,6 +109,28 @@ export default function TaskPage() {
     return `${NEXT_PUBLIC_API_URL}/api/files/serve/${fileId}`;
   };
 
+  // Загрузка существующих файлов пользователя
+  const loadExistingFiles = useCallback(async () => {
+    if (!get || !user) return;
+    try {
+      const res = await get('/get-files');
+      const filesData = res.data.data || res.data;
+      
+      if (Array.isArray(filesData)) {
+        const userFiles = filesData.filter((file: any) => file.author_id === user.id);
+        setExistingFiles(userFiles.map((file: any) => ({
+          id: file.id,
+          original_name: file.original_name,
+          mime_type: file.mime_type,
+          size: file.size,
+          path: file.path
+        })));
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки существующих файлов:', error);
+    }
+  }, [get, user]);
+
   // Загрузка информации о задании
   const getTaskInfo = useCallback(async (id: number) => {
     if (!get) return;
@@ -122,6 +156,9 @@ export default function TaskPage() {
         fileName: data.file?.original_name || '',
         fileSize: data.file?.size || 0,
       };
+
+      const ans = data.answers.filter((item:any) => item.user_id == user?.id)
+      setExistAns(ans.length > 0)
 
       setTask(taskData);
 
@@ -193,7 +230,10 @@ export default function TaskPage() {
     try {
       let fileId = null;
 
-      if (selectedFiles.length === 1) {
+      if (useExistingFile && selectedExistingFile) {
+        // Используем существующий файл
+        fileId = selectedExistingFile.id;
+      } else if (selectedFiles.length === 1) {
         const fileName = prompt(`Название для файла \n по умолчанию: ${selectedFiles[0].name}`) || selectedFiles[0].name;
         fileId = await uploadFile(selectedFiles[0], fileName);
       } else if (selectedFiles.length > 1) {
@@ -225,6 +265,8 @@ export default function TaskPage() {
 
       form.reset();
       setSelectedFiles([]);
+      setSelectedExistingFile(null);
+      setUseExistingFile(false);
       setDisabled(false);
 
       showAlert('Ответ успешно отправлен!', 'Ответ отправлен', 'success');
@@ -240,6 +282,8 @@ export default function TaskPage() {
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setSelectedFiles(Array.from(e.target.files));
+      setSelectedExistingFile(null);
+      setUseExistingFile(false);
       setDisabled(false);
     }
   };
@@ -485,7 +529,8 @@ export default function TaskPage() {
     if (authLoading) return;
     if (!user) { router.push('/login'); return; }
     getTaskInfo(Number(params?.tid));
-  }, [user, authLoading, params?.tid, getTaskInfo]);
+    loadExistingFiles();
+  }, [user, authLoading, params?.tid, getTaskInfo, loadExistingFiles]);
 
   if (authLoading || loading) {
     return <Loader />;
@@ -717,7 +762,7 @@ export default function TaskPage() {
             {/* Правая колонка */}
             <div className="lg:col-span-3 space-y-6">
               {/* Форма отправки для учеников */}
-              {!isTeacher && (
+              {(!isTeacher && !existAns) && (
                 <div className="bg-white rounded-xl shadow-lg p-6">
                   <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <Send className="w-5 h-5 text-main" />
@@ -740,45 +785,112 @@ export default function TaskPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Файл(ы) с ответом <span className="text-red-500">*</span>
                       </label>
-                      <div className="flex items-center justify-center w-full">
-                        <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
-                          <div className="flex flex-col items-center justify-center pt-4 pb-4">
-                            <Upload className="w-6 h-6 text-gray-400 mb-1" />
-                            <p className="mb-1 text-xs text-gray-500">
-                              <span className="font-semibold">Нажмите для загрузки</span> или перетащите
-                            </p>
-                            <p className="text-xs text-gray-500">Несколько файлов будут упакованы в ZIP</p>
-                          </div>
-                          <input type="file" name="file" multiple required className="hidden" onChange={handleFileChange} />
-                        </label>
-                      </div>
 
-                      {selectedFiles.length > 0 && (
-                        <div className="mt-3 space-y-2">
-                          <p className="text-sm font-medium text-gray-700">
-                            Выбрано: {selectedFiles.length} файл(ов)
-                            {selectedFiles.length > 1 && <span className="text-main ml-1">(→ ZIP архив)</span>}
-                          </p>
-                          <div className="max-h-32 overflow-y-auto border rounded-lg p-2 bg-gray-50">
-                            {selectedFiles.map((file, index) => (
-                              <div key={index} className="flex items-center justify-between py-1 px-2 hover:bg-white rounded">
-                                <span className="text-sm text-gray-600 truncate flex-1 flex items-center gap-2">
-                                  {getSmallFileIcon(file.type, file.name)}
-                                  {file.name} ({(file.size / 1024).toFixed(1)} KB)
-                                </span>
-                                <button type="button" onClick={() => removeFile(index)} className="text-red-500 hover:text-red-700">
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
+                      {/* Чекбокс для выбора существующего файла */}
+                      {existingFiles.length > 0 && (
+                        <div className="mb-3">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={useExistingFile}
+                              onChange={(e) => {
+                                setUseExistingFile(e.target.checked);
+                                if (e.target.checked) {
+                                  setSelectedFiles([]);
+                                } else {
+                                  setSelectedExistingFile(null);
+                                }
+                              }}
+                              className="w-4 h-4 text-main focus:ring-main"
+                            />
+                            <span className="text-sm text-gray-700">Использовать существующий файл</span>
+                          </label>
+                        </div>
+                      )}
+
+                      {useExistingFile ? (
+                        <div>
+                          <select
+                            value={selectedExistingFile?.id || ''}
+                            onChange={(e) => {
+                              const fileId = parseInt(e.target.value);
+                              const file = existingFiles.find(f => f.id === fileId);
+                              setSelectedExistingFile(file || null);
+                              setDisabled(!file);
+                            }}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-main focus:border-transparent outline-none transition bg-white"
+                          >
+                            <option value="">Выберите файл</option>
+                            {existingFiles.map((file) => (
+                              <option key={file.id} value={file.id}>
+                                {file.original_name} ({(file.size / 1024).toFixed(1)} KB)
+                              </option>
                             ))}
+                          </select>
+                          {selectedExistingFile && (
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openFileViewer(selectedExistingFile)}
+                                className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                              >
+                                <Eye className="w-4 h-4" />
+                                Просмотреть
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => downloadFile(selectedExistingFile.id, selectedExistingFile.original_name)}
+                                className="text-sm text-green-600 hover:text-green-800 flex items-center gap-1"
+                              >
+                                <Download className="w-4 h-4" />
+                                Скачать
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="flex items-center justify-center w-full">
+                            <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
+                              <div className="flex flex-col items-center justify-center pt-4 pb-4">
+                                <Upload className="w-6 h-6 text-gray-400 mb-1" />
+                                <p className="mb-1 text-xs text-gray-500">
+                                  <span className="font-semibold">Нажмите для загрузки</span> или перетащите
+                                </p>
+                                <p className="text-xs text-gray-500">Несколько файлов будут упакованы в ZIP</p>
+                              </div>
+                              <input type="file" name="file" multiple required className="hidden" onChange={handleFileChange} />
+                            </label>
                           </div>
+
+                          {selectedFiles.length > 0 && (
+                            <div className="mt-3 space-y-2">
+                              <p className="text-sm font-medium text-gray-700">
+                                Выбрано: {selectedFiles.length} файл(ов)
+                                {selectedFiles.length > 1 && <span className="text-main ml-1">(→ ZIP архив)</span>}
+                              </p>
+                              <div className="max-h-32 overflow-y-auto border rounded-lg p-2 bg-gray-50">
+                                {selectedFiles.map((file, index) => (
+                                  <div key={index} className="flex items-center justify-between py-1 px-2 hover:bg-white rounded">
+                                    <span className="text-sm text-gray-600 truncate flex-1 flex items-center gap-2">
+                                      {getSmallFileIcon(file.type, file.name)}
+                                      {file.name} ({(file.size / 1024).toFixed(1)} KB)
+                                    </span>
+                                    <button type="button" onClick={() => removeFile(index)} className="text-red-500 hover:text-red-700">
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
 
                     <button
                       type="submit"
-                      disabled={disabled || submitting}
+                      disabled={disabled || submitting || (!useExistingFile && selectedFiles.length === 0) || (useExistingFile && !selectedExistingFile)}
                       className="w-full py-3 bg-main text-white rounded-lg hover:bg-main-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       {submitting ? (

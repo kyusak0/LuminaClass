@@ -493,7 +493,7 @@ class UserController extends Controller
     }
     
     public function getUserInfo($id, Request $request){
-        $user = User::with(['files', 'groups', 'tasks', 'answers', 'tutors', 'guardianships'])->findOrFail($id);
+        $user = User::with(['files', 'groups.group.tasks', 'tasks', 'answers', 'tutors', 'guardianships'])->findOrFail($id);
         
         $this->logAction(
             'Получение информации о пользователе',

@@ -11,7 +11,7 @@ class Student extends Model
 
     protected $fillable = ['student_id','group_id'];
 
-    public function groups(){
+    public function group(){
         return $this->belongsTo(Group::class);
     }
 

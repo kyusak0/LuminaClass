@@ -180,7 +180,7 @@ export default function MarksPage() {
             const res = await get(`get-performance-student/${user.id}`);
             console.log('Данные студента:', res);
 
-            if (res?.data && Array.isArray(res.data)) {
+            if (res?.data && Array.isArray(res.data.data)) {
                 buildStudentTableView(res.data.data);
             } else if (res?.message === 'Студент не состоит в группе') {
                 // Если студент не в группе, показываем пустое состояние
@@ -189,6 +189,7 @@ export default function MarksPage() {
                 setStudentMarksMatrix(new Map());
                 setAverageScores(new Map());
                 setSearchProps([]);
+
             }
         } catch (error) {
             console.error('Ошибка загрузки данных студента:', error);
@@ -196,6 +197,7 @@ export default function MarksPage() {
     };
 
     const buildStudentTableView = (data: StudentPerformance[]) => {
+        
         if (!data || data.length === 0) {
             setStudentSubjects([]);
             setStudentTasks([]);
@@ -204,6 +206,8 @@ export default function MarksPage() {
             setSearchProps([]);
             return;
         }
+
+        
 
         // Собираем уникальные предметы
         const subjects = [...new Set(data.map(item => item.subject))];

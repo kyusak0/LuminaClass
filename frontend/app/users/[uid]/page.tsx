@@ -9,7 +9,7 @@ import Calendar from '@/components/calendar/Calendar';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { useAuth } from '@/context/authContext';
 import { Loader2, Upload, Link2, Copy, Check, FileText, ClipboardCheck, Users, BookOpen, MessageCircle, Calendar as CalendarIcon, Star, ChevronRight } from 'lucide-react';
-import { NEXT_PUBLIC_API_URL } from '@/lib/axios.config';
+import axiosInstance, { NEXT_PUBLIC_API_URL } from '@/lib/axios.config';
 import Loader from '@/components/loader/Loader';
 
 interface UserStats {
@@ -40,7 +40,7 @@ export default function UserPage() {
   if (!auth) return
 
   // Безопасное получение данных из auth
-  const { user: currentUser, get, post, loading: authLoading } = auth
+  const { user: currentUser, get, post, loading: authLoading, token } = auth
 
   const [userData, setUserData] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,7 +91,7 @@ export default function UserPage() {
 
       setStats({
         files: user.files?.length || 0,
-        tasks: user.tasks?.length || 0,
+        tasks: user.tasks?.length || res.data.data.groups.map((item: any) => item.group?.tasks).length || 0,
         answers: user.answers?.length || 0,
         groups: (user.groups?.length || 0) + (user.tutors?.length || 0)
       });
@@ -123,9 +123,17 @@ export default function UserPage() {
       }
 
       const now = new Date();
-      const upcomingTasks = user.tasks
-        ?.filter((task: any) => new Date(task.deadline) >= now)
-        .sort((a: any, b: any) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
+      const upcomingTasks = user.groups
+        .flatMap((item: any) => item.group?.tasks || [])
+        .filter((task: any) => {
+          if (!task || !task.deadline) return false;
+          const deadline = new Date(task.deadline);
+          return deadline >= now;
+        })
+        .sort((a: any, b: any) => {
+          // Сортируем по дате дедлайна (от самых ранних)
+          return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+        });
 
       if (upcomingTasks?.length > 0) {
         const nearest = upcomingTasks[0];
@@ -190,13 +198,21 @@ export default function UserPage() {
         formData.append('file', selectedFile);
         formData.append('author_id', currentUser?.id?.toString() || '1');
 
-        const response: any = await post('/save-file', formData);
 
-        if (!response || !response.url) {
-          throw new Error('Сервер не вернул URL файла');
-        }
+        const response = await axiosInstance.post(
+          `/save-file`,
+          formData,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data',
+            },
+          }
+        );
 
-        const avatarUrl = `${NEXT_PUBLIC_API_URL}${response.url}`;
+
+
+        const avatarUrl = `${NEXT_PUBLIC_API_URL}${response.data.file.url}`;
         await post(`/user/${currentUser?.id}/set-avatar`, { avatar: avatarUrl });
 
         showAlert('Файл успешно загружен и установлен как аватар');
@@ -283,7 +299,7 @@ export default function UserPage() {
   }
 
   const statsCards = [
-    { label: 'Файлы', value: stats.files, icon: FileText,  color: 'white' },
+    { label: 'Файлы', value: stats.files, icon: FileText, color: 'white' },
     { label: 'Задания', value: stats.tasks, icon: BookOpen, color: 'from-green-500 to-green-600' },
     { label: 'Ответы', value: stats.answers, icon: ClipboardCheck, color: 'from-purple-500 to-purple-600' },
     { label: 'Группы', value: stats.groups, icon: Users, color: 'from-orange-500 to-orange-600' },
@@ -318,7 +334,7 @@ export default function UserPage() {
                     <h3 className="text-xl font-bold mb-4">Изменить аватар</h3>
                     <div className="space-y-4">
                       <div className="bg-gray-50 rounded-lg p-4 flex justify-center">
-                        <img src={fileUrl || '/api/placeholder/200/200'} className="w-32 h-32 sm:w-40 sm:h-40 rounded-full object-cover" alt="Preview" />
+                        <img src={fileUrl || ''} className="w-32 h-32 sm:w-40 sm:h-40 rounded-full object-cover" alt="Preview" />
                       </div>
 
                       <form onSubmit={(e) => saveFile(e, 'file')} className="space-y-3">
@@ -457,7 +473,7 @@ export default function UserPage() {
                 Распределение оценок
               </h2>
               {stats.answers > 0 ? (
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+                <div className="flex flex-col items-center justify-center gap-6">
                   <div className="w-48 h-48 sm:w-64 sm:h-64 flex-shrink-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
@@ -530,7 +546,7 @@ export default function UserPage() {
           {/* Календарь */}
           <div className={`${isStudent ? 'lg:w-1/3' : 'w-full'} bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6`}>
             <Calendar
-              tasks={userData?.tasks || []}
+              tasks={userData.groups.flatMap((item: any) => item.group?.tasks || [])}
               onTaskClick={(task) => {
                 router.push(`/tasks/${task.id}`);
               }}
@@ -570,7 +586,7 @@ export default function UserPage() {
 
           {/* Задать вопрос */}
           <Link
-            href={`/contacts/${userData?.id}`}
+            href={`/chats/11`}
             className="bg-gradient-to-br from-main to-main-hover rounded-2xl shadow-sm p-4 sm:p-6 text-white hover:shadow-lg transition-all group"
           >
             <div className="flex items-center justify-between">

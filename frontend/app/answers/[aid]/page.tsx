@@ -303,7 +303,7 @@ export default function AnswerPage() {
         const form: any = event.target;
         const newData = {
             id: task?.id,
-            mark: form.mark.value === 'н/а' ? null : parseInt(form.mark.value),
+            mark: form.mark.value === 'н/а' ? null : form.mark.value,
             teachers_comment: form.teachers_comment.value
         };
 
