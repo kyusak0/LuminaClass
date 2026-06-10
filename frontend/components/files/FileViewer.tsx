@@ -111,8 +111,8 @@ export default function FileViewer({ fileData, onClose, onFileOpen }: FileViewer
 
   // Если это архив - показываем ArchiveViewer
   if (fileType === 'archive' || fileData.mime_type?.includes('zip')) {
-    {
-      showArchive && (
+    if (showArchive) {
+      return (
         <ArchiveViewer
           archive={fileData}
           onClose={() => {
@@ -131,7 +131,7 @@ export default function FileViewer({ fileData, onClose, onFileOpen }: FileViewer
             console.log('File extracted:', newFile);
           }}
         />
-      )
+      );
     }
 
     return (
@@ -265,7 +265,7 @@ function FilePreview({ fileData, fileType, serveUrl, token, isTempFile }: any) {
     }
 
     // PowerPoint из архива - уже HTML
-    if (fileType === 'presentation' && typeof fileData.content === 'string') {
+    if (fileType === 'presentation') {
       return (
         <div className="powerpoint-viewer">
           <div dangerouslySetInnerHTML={{ __html: fileData.content }} />
@@ -342,7 +342,7 @@ function FilePreview({ fileData, fileType, serveUrl, token, isTempFile }: any) {
   }
 
   // Для презентаций:
-  if (fileType === 'powerpoint') {
+  if (fileType === 'presentation') {
     console.log('🎬 Rendering presentation:', {
       isTempFile,
       hasContent: !!fileData.content,

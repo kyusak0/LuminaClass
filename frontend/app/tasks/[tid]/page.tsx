@@ -57,56 +57,6 @@ interface AnswerData {
   };
 }
 
-// Вспомогательные функции для работы с файлами
-const getCorrectMimeType = (mimeType: string, fileName: string): string => {
-  const extension = fileName?.split('.').pop()?.toLowerCase() || '';
-
-  if (extension === 'zip') return 'application/zip';
-  if (extension === 'rar') return 'application/x-rar-compressed';
-
-  const mimeMap: Record<string, string> = {
-    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'doc': 'application/msword',
-    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'xls': 'application/vnd.ms-excel',
-    'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'ppt': 'application/vnd.ms-powerpoint',
-    'pdf': 'application/pdf',
-    'txt': 'text/plain',
-    'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
-    'png': 'image/png', 'gif': 'image/gif',
-    'webp': 'image/webp',
-    'mp4': 'video/mp4', 'mp3': 'audio/mpeg',
-  };
-
-  return mimeMap[extension] || mimeType;
-};
-
-const getFileTypeByExtension = (fileName: string, mimeType: string): string => {
-  const extension = fileName?.split('.').pop()?.toLowerCase() || '';
-
-  if (extension === 'zip' || extension === 'rar' || mimeType?.includes('zip') || mimeType?.includes('rar')) {
-    return 'archive';
-  }
-  
-  if (['doc', 'docx'].includes(extension)) return 'word';
-  if (['xls', 'xlsx'].includes(extension)) return 'excel';
-  if (['ppt', 'pptx'].includes(extension)) return 'presentation';
-  if (['pdf'].includes(extension)) return 'pdf';
-  if (['txt', 'csv', 'json', 'xml', 'html', 'css', 'js', 'md', 'log'].includes(extension)) return 'text';
-  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(extension)) return 'image';
-  if (['mp4', 'avi', 'mov', 'mkv'].includes(extension)) return 'video';
-  if (['mp3', 'wav', 'ogg', 'flac'].includes(extension)) return 'audio';
-
-  if (mimeType?.startsWith('text/')) return 'text';
-  if (mimeType?.startsWith('image/')) return 'image';
-  if (mimeType?.startsWith('video/')) return 'video';
-  if (mimeType?.startsWith('audio/')) return 'audio';
-  if (mimeType === 'application/pdf') return 'pdf';
-
-  return 'other';
-};
-
 export default function TaskPage() {
   const params = useParams();
   const router = useRouter();
@@ -132,6 +82,20 @@ export default function TaskPage() {
   const [viewingFile, setViewingFile] = useState<any>(null);
   const [showArchiveViewer, setShowArchiveViewer] = useState(false);
   const [archiveFileData, setArchiveFileData] = useState<any>(null);
+
+  // Получение URL файла для отображения
+  const getFileUrl = (path: string) => {
+    if (!path) return '';
+    // Если путь уже содержит полный URL
+    if (path.startsWith('http')) return path;
+    // Иначе формируем полный путь
+    return `${NEXT_PUBLIC_API_URL}/storage/${path}`;
+  };
+
+  // Получение URL для serve endpoint
+  const getServeUrl = (fileId: number) => {
+    return `${NEXT_PUBLIC_API_URL}/api/files/serve/${fileId}`;
+  };
 
   // Загрузка информации о задании
   const getTaskInfo = useCallback(async (id: number) => {
@@ -175,8 +139,8 @@ export default function TaskPage() {
           original_name: data.file.original_name,
           mime_type: 'application/zip',
           size: data.file.size || 0,
-          url: `${NEXT_PUBLIC_API_URL}/storage/${data.file.path}`,
-          serve_url: `${NEXT_PUBLIC_API_URL}/api/files/serve/${data.file.id}`,
+          url: getFileUrl(data.file.path),
+          serve_url: getServeUrl(data.file.id),
         });
       }
     } catch (error: any) {
@@ -314,37 +278,61 @@ export default function TaskPage() {
 
   // Открытие файла в просмотрщике
   const openFileViewer = (file: any) => {
-    const isArchive = file.original_name?.endsWith('.zip') || 
-                     file.original_name?.endsWith('.rar') ||
-                     file.mime_type?.includes('zip') ||
-                     file.mime_type?.includes('rar');
-    
+    const isArchive = file.original_name?.endsWith('.zip') ||
+      file.original_name?.endsWith('.rar') ||
+      file.mime_type?.includes('zip') ||
+      file.mime_type?.includes('rar');
+
     const viewerData = {
       id: file.id,
       original_name: file.original_name,
-      mime_type: getCorrectMimeType(file.mime_type, file.original_name),
+      mime_type: file.mime_type,
       size: file.size || 0,
-      url: file.path ? `${NEXT_PUBLIC_API_URL}/storage/${file.path}` : file.url,
-      serve_url: `${NEXT_PUBLIC_API_URL}/api/files/${file.id}/serve`,
+      url: file.path ? getFileUrl(file.path) : file.url,
+      serve_url: getServeUrl(file.id),
       file_type: getFileTypeByExtension(file.original_name, file.mime_type),
       is_archive: isArchive,
     };
 
+    console.log('Opening file:', viewerData);
     setViewingFile(viewerData);
-    
+
     if (isArchive) {
       setArchiveFileData({
         id: file.id,
         original_name: file.original_name,
         mime_type: file.mime_type || 'application/zip',
         size: file.size || 0,
-        url: file.path ? `${NEXT_PUBLIC_API_URL}/storage/${file.path}` : file.url,
-        serve_url: `${NEXT_PUBLIC_API_URL}/api/files/${file.id}/serve`,
+        url: file.path ? getFileUrl(file.path) : file.url,
+        serve_url: getServeUrl(file.id),
       });
       setShowArchiveViewer(true);
     } else {
       setShowFileViewer(true);
     }
+  };
+
+  // Определение типа файла
+  const getFileTypeByExtension = (fileName: string, mimeType: string): string => {
+    const extension = fileName?.split('.').pop()?.toLowerCase() || '';
+
+    if (extension === 'zip' || extension === 'rar') return 'archive';
+    if (['doc', 'docx'].includes(extension)) return 'word';
+    if (['xls', 'xlsx'].includes(extension)) return 'excel';
+    if (['ppt', 'pptx'].includes(extension)) return 'presentation';
+    if (['pdf'].includes(extension)) return 'pdf';
+    if (['txt', 'csv', 'json', 'xml', 'html', 'css', 'js', 'md', 'log'].includes(extension)) return 'text';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(extension)) return 'image';
+    if (['mp4', 'avi', 'mov', 'mkv'].includes(extension)) return 'video';
+    if (['mp3', 'wav', 'ogg', 'flac'].includes(extension)) return 'audio';
+
+    if (mimeType?.startsWith('text/')) return 'text';
+    if (mimeType?.startsWith('image/')) return 'image';
+    if (mimeType?.startsWith('video/')) return 'video';
+    if (mimeType?.startsWith('audio/')) return 'audio';
+    if (mimeType === 'application/pdf') return 'pdf';
+
+    return 'other';
   };
 
   // Открытие модального окна для оценивания
@@ -406,15 +394,7 @@ export default function TaskPage() {
     return icons[type] || <FileIcon className="w-5 h-5 text-gray-400" />;
   };
 
-  // Получение цвета для оценки
-  const getMarkColor = (mark: number | null) => {
-    if (mark === null) return 'text-gray-400';
-    if (mark >= 4) return 'text-green-600 font-bold';
-    if (mark >= 3) return 'text-yellow-600 font-bold';
-    return 'text-red-600 font-bold';
-  };
-
-  // Формирование данных для SearchTable - только имя студента, оценка и действия
+  // Формирование данных для SearchTable
   const answerRecords = useMemo((): SearchRecord[] => {
     return answers.map(item => {
       let markValue = '—';
@@ -433,20 +413,20 @@ export default function TaskPage() {
           {
             title: 'Ученик',
             key: 'student',
-            data: { 
-              value: item.user.name || 'Неизвестно', 
-              size: 6, 
-              isFilter: true, 
-              add: 'font-medium' 
+            data: {
+              value: item.user.name || 'Неизвестно',
+              size: 6,
+              isFilter: true,
+              add: 'font-medium'
             }
           },
           {
             title: 'Оценка',
             key: 'mark',
-            data: { 
-              value: markValue, 
-              size: 3, 
-              add: markClass 
+            data: {
+              value: markValue,
+              size: 3,
+              add: markClass
             }
           }
         ]
@@ -457,7 +437,7 @@ export default function TaskPage() {
   // Действия для SearchTable
   const tableActions = [
     {
-      label: 'Просмотр файла',
+      label: 'Просмотр',
       icon: <Eye size={20} />,
       onClick: (record: SearchRecord) => {
         const answer = answers.find(a => a.id === record.id);
@@ -477,7 +457,7 @@ export default function TaskPage() {
         const answer = answers.find(a => a.id === record.id);
         if (answer) openGradeModal(answer);
       },
-      className: `text-yellow-600 hover:bg-yellow-50 ${user.role == 'teacher' ? '' : 'hidden'}`
+      className: `text-yellow-600 hover:bg-yellow-50 ${user?.role == 'teacher' ? '' : 'hidden'}`
     },
     {
       label: 'Скачать',
@@ -513,7 +493,6 @@ export default function TaskPage() {
 
   if (!user || !task) return null;
 
-  const isZipFile = task.fileName?.endsWith('.zip') || task.fileType === 'application/zip';
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
 
   return (
@@ -565,7 +544,6 @@ export default function TaskPage() {
             </div>
 
             <form onSubmit={submitGrade} className="p-6 space-y-6">
-              {/* Информация об ученике */}
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <User className="w-4 h-4 text-gray-500" />
@@ -580,7 +558,6 @@ export default function TaskPage() {
                 </div>
               </div>
 
-              {/* Комментарий ученика */}
               {selectedAnswer.students_comment && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
@@ -593,7 +570,6 @@ export default function TaskPage() {
                 </div>
               )}
 
-              {/* Комментарий учителя */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Комментарий учителя
@@ -607,7 +583,6 @@ export default function TaskPage() {
                 />
               </div>
 
-              {/* Оценка */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Оценка
@@ -625,7 +600,6 @@ export default function TaskPage() {
                 </select>
               </div>
 
-              {/* Кнопки */}
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
@@ -667,7 +641,7 @@ export default function TaskPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-            {/* Левая колонка - файл задания */}
+            {/* Левая колонка - информация о задании */}
             <div className="lg:col-span-2">
               <div className="bg-white rounded-xl shadow-lg overflow-hidden sticky top-4">
                 <div className="bg-main px-4 sm:px-6 py-3">
@@ -680,44 +654,37 @@ export default function TaskPage() {
                 <div className="min-h-[400px] bg-gray-50 flex items-center justify-center p-6">
                   {task.fileId ? (
                     <div className="text-center w-full">
-                      {/* Превью для изображений */}
                       {task.fileType?.startsWith('image/') ? (
                         <img
-                          src={`${NEXT_PUBLIC_API_URL}/storage/${task.fileUrl}`}
+                          src={getFileUrl(task.fileUrl)}
                           alt={task.fileName}
                           className="max-w-full max-h-[350px] object-contain mx-auto rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
                           onClick={() => openFileViewer({ id: task.fileId, original_name: task.fileName, mime_type: task.fileType, path: task.fileUrl, size: task.fileSize })}
+                          onError={(e) => {
+                            console.error('Image load error:', e);
+                            e.currentTarget.style.display = 'none';
+                          }}
                         />
                       ) : (
                         <div className="flex flex-col items-center">
                           <div className="text-6xl mb-4">
-                            {isZipFile ? '📦' : task.fileType?.includes('pdf') ? '📕' : '📄'}
+                            {task.fileName?.endsWith('.zip') ? '📦' : '📄'}
                           </div>
                           <h3 className="text-lg font-semibold mb-1">{task.fileName}</h3>
                           <p className="text-sm text-gray-500 mb-4">
-                            {isZipFile ? 'ZIP архив' : task.fileType}
+                            {task.fileType || 'Неизвестный тип'}
                           </p>
                         </div>
                       )}
 
                       <div className="flex gap-2 justify-center">
-                        {isZipFile ? (
-                          <button
-                            onClick={() => openFileViewer({ id: task.fileId, original_name: task.fileName, mime_type: task.fileType, path: task.fileUrl, size: task.fileSize })}
-                            className="px-4 py-2 bg-main text-white rounded-lg hover:bg-main-dark transition-colors flex items-center gap-2 text-sm"
-                          >
-                            <FolderArchive className="w-4 h-4" />
-                            Открыть архив
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => openFileViewer({ id: task.fileId, original_name: task.fileName, mime_type: task.fileType, path: task.fileUrl, size: task.fileSize })}
-                            className="px-4 py-2 bg-main text-white rounded-lg hover:bg-main-dark transition-colors flex items-center gap-2 text-sm"
-                          >
-                            <Eye className="w-4 h-4" />
-                            Просмотреть
-                          </button>
-                        )}
+                        <button
+                          onClick={() => openFileViewer({ id: task.fileId, original_name: task.fileName, mime_type: task.fileType, path: task.fileUrl, size: task.fileSize })}
+                          className="px-4 py-2 bg-main text-white rounded-lg hover:bg-main-dark transition-colors flex items-center gap-2 text-sm"
+                        >
+                          <Eye className="w-4 h-4" />
+                          Просмотреть
+                        </button>
                         <button
                           onClick={() => downloadFile(task.fileId, task.fileName)}
                           className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 text-sm"
@@ -734,6 +701,7 @@ export default function TaskPage() {
                     </div>
                   )}
                 </div>
+
                 <div className="bg-white rounded-xl shadow-lg p-6">
                   <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <MessageSquare className="w-5 h-5 text-main" />
@@ -746,9 +714,9 @@ export default function TaskPage() {
               </div>
             </div>
 
-            {/* Правая колонка - информация и форма */}
+            {/* Правая колонка */}
             <div className="lg:col-span-3 space-y-6">
-              {/* Форма отправки (для учеников) */}
+              {/* Форма отправки для учеников */}
               {!isTeacher && (
                 <div className="bg-white rounded-xl shadow-lg p-6">
                   <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -823,7 +791,7 @@ export default function TaskPage() {
                 </div>
               )}
 
-              {/* Таблица ответов (для учителя) - упрощенная */}
+              {/* Таблица ответов для учителя */}
               {isTeacher && (
                 <div className="bg-white rounded-xl shadow-lg overflow-hidden">
                   <div className="bg-main px-4 sm:px-6 py-3 flex justify-between items-center">
