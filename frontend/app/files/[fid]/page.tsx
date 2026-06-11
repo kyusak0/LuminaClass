@@ -25,7 +25,10 @@ import {
     FileType,
     FileCheck,
     Loader2,
-    Eye
+    Eye,
+    CheckCircle,
+    XCircle,
+    AlertCircle
 } from 'lucide-react';
 import AdminLoader from "@/components/adminLoader/AdminLoader";
 
@@ -52,6 +55,13 @@ export default function FilePage() {
     const [showFileViewer, setShowFileViewer] = useState(false);
     const [fileViewerData, setFileViewerData] = useState<any>(null);
     const [currentViewerKey, setCurrentViewerKey] = useState(0);
+    const [alertMess, setAlertMess] = useState<{ content: any } | null>(null);
+    const [confirmDialog, setConfirmDialog] = useState<{
+        show: boolean;
+        message: string;
+        onConfirm: () => void;
+        onCancel: () => void;
+    } | null>(null);
 
     useEffect(() => {
         const fileId = Number(params.fid);
@@ -66,6 +76,44 @@ export default function FilePage() {
         }
     }, [params.fid, auth]);
 
+    const showAlert = (message: string, isError: boolean = false) => {
+        const alertContent = (
+            <div className="p-3">
+                <div className="flex items-center gap-2 font-semibold mb-2">
+                    {isError ? (
+                        <XCircle className="w-5 h-5 text-red-500" />
+                    ) : (
+                        <CheckCircle className="w-5 h-5 text-green-500" />
+                    )}
+                    <span>{isError ? 'Ошибка' : 'Успешно'}</span>
+                </div>
+                <div className="text-sm">{message}</div>
+                <div className="text-xs text-gray-500 mt-2">
+                    {new Date().toLocaleString()}
+                </div>
+            </div>
+        );
+        setAlertMess({ content: alertContent });
+        
+        setTimeout(() => {
+            setAlertMess(null);
+        }, 5000);
+    };
+
+    const showConfirm = (message: string, onConfirm: () => void) => {
+        setConfirmDialog({
+            show: true,
+            message,
+            onConfirm: () => {
+                setConfirmDialog(null);
+                onConfirm();
+            },
+            onCancel: () => {
+                setConfirmDialog(null);
+            }
+        });
+    };
+
     const loadFile = async () => {
         setLoading(true);
         setError(null);
@@ -74,6 +122,7 @@ export default function FilePage() {
         } catch (error) {
             console.error('Ошибка загрузки:', error);
             setError('Не удалось загрузить файл');
+            showAlert('Не удалось загрузить файл', true);
         } finally {
             setLoading(false);
         }
@@ -95,7 +144,7 @@ export default function FilePage() {
                     original_name: fileData.original_name,
                     mime_type: fileData.mime_type,
                     size: fileData.size,
-                    serve_url: `${NEXT_PUBLIC_API_URL}/storage/${fileData.path}`,
+                    serve_url: `${NEXT_PUBLIC_API_URL}/api/files/serve/${fileData.id}`,
                     url: `${NEXT_PUBLIC_API_URL}/api/files/download/${fileData.id}`,
                     file_type: getFileTypeFromMime(fileData.mime_type, fileData.original_name),
                     created_at: fileData.created_at,
@@ -106,10 +155,12 @@ export default function FilePage() {
                 setFileViewerData(viewerData);
             } else {
                 setError('Файл не найден');
+                showAlert('Файл не найден', true);
             }
         } catch (error) {
             console.error('Ошибка загрузки файла:', error);
             setError('Ошибка при загрузке файла');
+            showAlert('Ошибка при загрузке файла', true);
         }
     };
 
@@ -182,9 +233,10 @@ export default function FilePage() {
             link.click();
             document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
+            showAlert(`Файл "${customName.trim()}" успешно скачан`);
         } catch (error) {
             console.error('Error downloading file:', error);
-            alert('Ошибка при скачивании файла');
+            showAlert('Ошибка при скачивании файла', true);
         } finally {
             setDownloading(false);
         }
@@ -194,31 +246,33 @@ export default function FilePage() {
         if (!file || !post) return;
 
         if (user?.role !== 'admin' && user?.id !== file.user.id) {
-            alert('У Вас недостаточно прав для этого');
+            showAlert('У Вас недостаточно прав для этого', true);
             return;
         }
 
-        if (confirm(`Вы уверены что хотите удалить файл: \n ${file.original_name} ?`)) {
-            try {
-                await post(`/files/delete/${file.id}`, {});
-                alert('Файл успешно удален');
-                router.push('/files');
-            } catch (error) {
-                console.error('Ошибка удаления файла:', error);
-                alert('Ошибка при удалении файла');
+        showConfirm(
+            `Вы уверены что хотите удалить файл: ${file.original_name}?`,
+            async () => {
+                try {
+                    await post(`/files/delete/${file.id}`, {});
+                    showAlert('Файл успешно удален');
+                    router.push('/files');
+                } catch (error) {
+                    console.error('Ошибка удаления файла:', error);
+                    showAlert('Ошибка при удалении файла', true);
+                }
             }
-        }
+        );
     };
 
     const handleOpenViewer = () => {
-        // Сбрасываем данные к исходному файлу при открытии
         if (file) {
             const viewerData = {
                 id: file.id,
                 original_name: file.original_name,
                 mime_type: file.mime_type,
                 size: file.size,
-                serve_url: `${NEXT_PUBLIC_API_URL}/storage/${file.path}`,
+                serve_url: `${NEXT_PUBLIC_API_URL}/api/files/serve/${file.id}`,
                 url: `${NEXT_PUBLIC_API_URL}/api/files/download/${file.id}`,
                 file_type: getFileTypeFromMime(file.mime_type, file.original_name),
                 created_at: file.created_at,
@@ -236,11 +290,8 @@ export default function FilePage() {
 
     const handleFileFromArchive = useCallback((fileFromArchive: any) => {
         console.log('📦 Открываем файл из архива:', fileFromArchive);
-
-        // Обновляем данные для просмотрщика
         setFileViewerData(fileFromArchive);
         setCurrentViewerKey(prev => prev + 1);
-        // Показываем просмотрщик (если был закрыт)
         setShowFileViewer(true);
     }, []);
 
@@ -252,12 +303,14 @@ export default function FilePage() {
 
     if (error || !file) {
         return (
-            <AdminLayout>
+            <AdminLayout alertMess={alertMess?.content}>
                 <div className="min-h-screen bg-gray-50">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
                             <div className="text-center py-16">
-                                <div className="text-6xl mb-4">📁</div>
+                                <div className="text-6xl mb-4 flex justify-center">
+                                    <FileIcon className="w-20 h-20 text-gray-400" />
+                                </div>
                                 <h3 className="text-xl font-semibold text-gray-900 mb-2">
                                     {error || 'Файл не найден'}
                                 </h3>
@@ -281,7 +334,36 @@ export default function FilePage() {
     const canDelete = user?.role === 'admin' || user?.id === file?.user.id;
 
     return (
-        <AdminLayout>
+        <AdminLayout alertMess={alertMess?.content}>
+            {/* Кастомный диалог подтверждения */}
+            {confirmDialog?.show && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+                        <div className="p-6">
+                            <div className="flex items-center gap-3 mb-4">
+                                <AlertCircle className="w-6 h-6 text-orange-500" />
+                                <h3 className="text-lg font-semibold text-gray-900">Подтверждение действия</h3>
+                            </div>
+                            <p className="text-gray-600 mb-6">{confirmDialog.message}</p>
+                            <div className="flex gap-3 justify-end">
+                                <button
+                                    onClick={confirmDialog.onCancel}
+                                    className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium transition-colors"
+                                >
+                                    Отмена
+                                </button>
+                                <button
+                                    onClick={confirmDialog.onConfirm}
+                                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                                >
+                                    Удалить
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Модальное окно с FileViewer */}
             {showFileViewer && fileViewerData && (
                 <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center p-4">
