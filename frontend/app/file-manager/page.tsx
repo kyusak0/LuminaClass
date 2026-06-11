@@ -186,7 +186,7 @@ export default function ViewerPage() {
     if (!post) return;
     
     try {
-      const res = await post(`/delete-file/${fileId}`, {});
+      const res = await post(`/files/delete/${fileId}`, {});
       showAlert(`Файл "${fileName}" удален`);
       loadMyFiles();
     } catch (error: any) {
