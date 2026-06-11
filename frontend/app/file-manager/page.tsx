@@ -17,7 +17,8 @@ import {
   FolderOpen,
   Trash2,
   Download,
-  Eye
+  Eye,
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '@/context/authContext';
 
@@ -33,6 +34,14 @@ export default function ViewerPage() {
   const [activeTab, setActiveTab] = useState<'upload' | 'myfiles'>('upload');
   const [myFiles, setMyFiles] = useState<Array<{ id: number; name: string; original_name: string; created_at: string; size: number }>>([]);
   const [filesLoading, setFilesLoading] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    show: boolean;
+    message: string;
+    fileName: string;
+    fileId: number;
+    onConfirm: () => void;
+    onCancel: () => void;
+  } | null>(null);
 
   useEffect(() => {
     if (activeTab === 'myfiles') {
@@ -46,7 +55,6 @@ export default function ViewerPage() {
     try {
       const res = await get('/get-files');
 
-      // Проверяем структуру ответа
       const filesData = res.data?.data || res.data || [];
 
       const records = (Array.isArray(filesData) ? filesData : [])
@@ -108,11 +116,26 @@ export default function ViewerPage() {
     }, 5000);
   };
 
+  const showConfirm = (message: string, fileId: number, fileName: string, onConfirm: () => void) => {
+    setConfirmDialog({
+      show: true,
+      message,
+      fileName,
+      fileId,
+      onConfirm: () => {
+        setConfirmDialog(null);
+        onConfirm();
+      },
+      onCancel: () => {
+        setConfirmDialog(null);
+      }
+    });
+  };
+
   const handleFileLoaded = (data: any) => {
     console.log('📄 File loaded:', data);
     setFileData(data);
 
-    // Обновляем список файлов после загрузки
     if (activeTab === 'myfiles') {
       loadMyFiles();
     }
@@ -160,13 +183,12 @@ export default function ViewerPage() {
   };
 
   const handleDeleteFile = async (fileId: number, fileName: string) => {
-    if (!confirm(`Удалить файл "${fileName}"?`)) return;
-
     if (!post) return;
+    
     try {
       const res = await post(`/delete-file/${fileId}`, {});
       showAlert(`Файл "${fileName}" удален`);
-      loadMyFiles(); // Обновляем список
+      loadMyFiles();
     } catch (error: any) {
       showAlert(error.message || 'Ошибка при удалении файла', true);
     }
@@ -192,7 +214,6 @@ export default function ViewerPage() {
   const handleFileFromArchive = (file: any) => {
     console.log('📦 File from archive:', file);
 
-    // Добавляем недостающие поля для корректного отображения
     const enrichedFile = {
       ...file,
       mime_type: file.mime_type || getMimeTypeByExtension(file.original_name),
@@ -210,7 +231,6 @@ export default function ViewerPage() {
     }
   };
 
-  // Вспомогательные функции
   function getMimeTypeByExtension(filename: string): string {
     const ext = filename.split('.').pop()?.toLowerCase() || '';
     const mimeTypes: Record<string, string> = {
@@ -259,6 +279,35 @@ export default function ViewerPage() {
 
   return (
     <MainLayout alertMess={alertMess?.content}>
+      {/* Кастомный диалог подтверждения удаления */}
+      {confirmDialog?.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <AlertCircle className="w-6 h-6 text-red-500" />
+                <h3 className="text-lg font-semibold text-gray-900">Подтверждение удаления</h3>
+              </div>
+              <p className="text-gray-600 mb-6">{confirmDialog.message}</p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={confirmDialog.onCancel}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium transition-colors"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={confirmDialog.onConfirm}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                >
+                  Удалить
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="min-h-screen">
         <div className="container mx-auto px-4 py-8">
           {/* Заголовок */}
@@ -341,7 +390,7 @@ export default function ViewerPage() {
                       <span>Поддерживаемые форматы:</span>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {['📄 DOCX', '📊 XLSX', '📽️ PPTX', '📝 TXT', '🖼️ JPG/PNG', '🎬 MP4', '📦 ZIP'].map((format) => (
+                      {['DOCX', 'XLSX', 'PPTX', 'TXT', 'JPG/PNG', 'MP4', 'ZIP'].map((format) => (
                         <span key={format} className="px-3 py-1 bg-gray-100 rounded-full text-xs text-gray-600">
                           {format}
                         </span>
@@ -395,7 +444,12 @@ export default function ViewerPage() {
                               <Eye size={18} />
                             </button>
                             <button
-                              onClick={() => handleDeleteFile(file.id, file.name)}
+                              onClick={() => showConfirm(
+                                `Вы уверены, что хотите удалить файл "${file.name}"?`,
+                                file.id,
+                                file.name,
+                                () => handleDeleteFile(file.id, file.name)
+                              )}
                               className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                               title="Удалить"
                             >
