@@ -6,6 +6,7 @@ import MainLayout from "@/layouts/MainLayout";
 import { useAuth } from "@/context/authContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback } from "react";
+import Loader from "@/components/loader/Loader";
 
 interface StudentPerformance {
     group_id: number;
@@ -86,7 +87,7 @@ export default function MarksPage() {
             // Фильтруем группы для учителя
             let filteredGroups = res.data.groups || [];
             if (user?.role === 'teacher') {
-                filteredGroups = filteredGroups.filter((group: any) => 
+                filteredGroups = filteredGroups.filter((group: any) =>
                     group.teacher?.tutor_id === user.id
                 );
                 setTeacherGroups(filteredGroups);
@@ -143,9 +144,11 @@ export default function MarksPage() {
 
             // Фильтруем задачи для учителя
             let filteredTasks = res.data.info || [];
+
+            console.log(filteredTasks)
             if (user?.role === 'teacher') {
-                filteredTasks = filteredTasks.filter((task: any) => 
-                    filteredGroups.some((group: any) => group.id === task.group_id)
+                filteredTasks = filteredTasks.filter((task: any) =>
+                    filteredGroups.some((group: any) => group.id === task.group_id && task.user_id == user.id)
                 );
             }
 
@@ -197,7 +200,7 @@ export default function MarksPage() {
     };
 
     const buildStudentTableView = (data: StudentPerformance[]) => {
-        
+
         if (!data || data.length === 0) {
             setStudentSubjects([]);
             setStudentTasks([]);
@@ -207,7 +210,7 @@ export default function MarksPage() {
             return;
         }
 
-        
+
 
         // Собираем уникальные предметы
         const subjects = [...new Set(data.map(item => item.subject))];
@@ -562,6 +565,29 @@ export default function MarksPage() {
         return filtered;
     }, [searchProps, selectedGroupId, taskNum, groupFilterOptions, accessLevel]);
 
+
+    const calculatePassRate = useCallback(() => {
+        let totalMarks = 0;
+        let passingMarks = 0; // оценки 3, 4, 5
+
+        studentSubjects.forEach(subject => {
+            const marksByTask = studentMarksMatrix.get(subject);
+            if (marksByTask) {
+                marksByTask.forEach((value) => {
+                    if (value.mark !== null && value.mark !== undefined && !isNaN(value.mark) && value.mark != 0) {
+                        totalMarks++;
+                        if (value.mark >= 3) { // 3, 4, 5 считаются успеваемостью
+                            passingMarks++;
+                        }
+                    }
+                });
+            }
+        });
+
+        if (totalMarks === 0) return 0;
+        return Number(((passingMarks / totalMarks) * 100).toFixed(2));
+    }, [studentSubjects, studentMarksMatrix]);
+
     const donePercent = useMemo(() => {
         if (!filteredSearchProps || filteredSearchProps.length === 0) return 0;
 
@@ -616,7 +642,7 @@ export default function MarksPage() {
             const marksByTask = studentMarksMatrix.get(subject);
             if (marksByTask) {
                 marksByTask.forEach((value) => {
-                    if (value.mark !== null && value.mark !== undefined) {
+                    if (value.mark !== null && value.mark !== undefined && value.mark != 0) {
                         totalMarks += value.mark;
                         markCount++;
                     }
@@ -630,12 +656,7 @@ export default function MarksPage() {
 
     if (authLoading || loading) {
         return (
-            <MainLayout>
-                <div className="h-170 flex flex-col items-center justify-center">
-                    <div className="text-lg text-gray-500">Загрузка данных...</div>
-                    <div className="mt-4 w-16 h-16 border-4 border-main border-t-transparent rounded-full animate-spin"></div>
-                </div>
-            </MainLayout>
+            <Loader />
         );
     }
 
@@ -667,14 +688,15 @@ export default function MarksPage() {
                         <div className="p-4 bg-white rounded-lg shadow-sm border">
                             <div className="flex justify-between items-center mb-3">
                                 <div>
-                                    <span className="text-sm font-semibold text-gray-700">Качество выполнения</span>
+                                    <span className="text-sm font-semibold text-gray-700">Качество знаний</span>
+                                    <span className="ml-2 text-xs text-gray-500">(оценки 4 и 5)</span>
                                 </div>
-                                <span className="text-2xl font-bold text-main">{donePercent}%</span>
+                                <span className="text-2xl font-bold text-main">{calculateSuccessRate()}%</span>
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-3">
                                 <div
                                     className="bg-main h-3 rounded-full transition-all duration-300"
-                                    style={{ width: `${donePercent}%` }}
+                                    style={{ width: `${Math.min(calculateSuccessRate(), 100)}%` }}
                                 />
                             </div>
                         </div>
@@ -688,7 +710,7 @@ export default function MarksPage() {
                                 <span className={`text-2xl font-bold ${calculateOverallAverage() >= 4 ? 'text-main' :
                                     calculateOverallAverage() >= 3 ? 'text-blue-600' : 'text-red-600'
                                     }`}>
-                                    {calculateOverallAverage()}
+                                    {calculateOverallAverage().toFixed(2)}
                                 </span>
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-3">
@@ -696,7 +718,7 @@ export default function MarksPage() {
                                     className={`h-3 rounded-full transition-all duration-300 ${calculateOverallAverage() >= 4 ? 'bg-main' :
                                         calculateOverallAverage() >= 3 ? 'bg-blue-500' : 'bg-red-500'
                                         }`}
-                                    style={{ width: `${(calculateOverallAverage() / 5) * 100}%` }}
+                                    style={{ width: `${Math.min((calculateOverallAverage() / 5) * 100, 100)}%` }}
                                 />
                             </div>
                         </div>
@@ -706,13 +728,14 @@ export default function MarksPage() {
                             <div className="flex justify-between items-center mb-3">
                                 <div>
                                     <span className="text-sm font-semibold text-gray-700">Успеваемость</span>
+                                    <span className="ml-2 text-xs text-gray-500">(оценки 3,4,5)</span>
                                 </div>
-                                <span className="text-2xl font-bold text-blue-600">{calculateSuccessRate()}%</span>
+                                <span className="text-2xl font-bold text-blue-600">{calculatePassRate()}%</span>
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-3">
                                 <div
                                     className="bg-blue-500 h-3 rounded-full transition-all duration-300"
-                                    style={{ width: `${calculateSuccessRate()}%` }}
+                                    style={{ width: `${Math.min(calculatePassRate(), 100)}%` }}
                                 />
                             </div>
                         </div>
@@ -750,11 +773,14 @@ export default function MarksPage() {
                                                 const mark = taskData?.mark;
                                                 let markClass = 'text-gray-400';
                                                 let markBgClass = '';
-                                                if (mark !== null && mark !== undefined) {
+                                                if (mark !== null && mark !== undefined && !isNaN(mark)) {
                                                     if (mark >= 4) {
                                                         markClass = 'text-main font-bold';
                                                         markBgClass = 'bg-green-50';
-                                                    } else if (mark < 4) {
+                                                    } else if (mark >= 3) {
+                                                        markClass = 'text-blue-600';
+                                                        markBgClass = 'bg-blue-50';
+                                                    } else if (mark > 0) {
                                                         markClass = 'text-red-600';
                                                         markBgClass = 'bg-red-50';
                                                     }
@@ -766,7 +792,7 @@ export default function MarksPage() {
                                                         onClick={() => handleMarkClick(task.id, taskData?.answer_id, mark)}
                                                     >
                                                         <span className={markClass}>
-                                                            {mark !== null && mark !== undefined ? mark : '—'}
+                                                            {mark !== null && mark !== undefined && !isNaN(mark) ? mark : '—'}
                                                         </span>
                                                     </td>
                                                 );
@@ -777,7 +803,7 @@ export default function MarksPage() {
                                                         averageScore >= 3 ? 'text-blue-600' :
                                                             averageScore > 0 ? 'text-red-600' : 'text-gray-400'
                                                 }>
-                                                    {averageScore > 0 ? averageScore : '0.00'}
+                                                    {averageScore > 0 ? averageScore.toFixed(2) : '0.00'}
                                                 </span>
                                             </td>
                                         </tr>

@@ -62,7 +62,7 @@ export default function FileViewer({ fileData, onClose, onFileOpen }: FileViewer
       </div>
     );
     setAlertMess({ content: alertContent });
-    
+
     setTimeout(() => {
       setAlertMess(null);
     }, 5000);
@@ -135,51 +135,62 @@ export default function FileViewer({ fileData, onClose, onFileOpen }: FileViewer
   };
 
   const downloadFile = async (customName?: string) => {
-    if (downloading) return;
+  if (downloading) return;
 
-    const fileName = customName || fileData.original_name;
+  const fileName = customName || fileData.original_name;
 
-    setDownloading(true);
-    try {
-      let response;
-      
-      if (isTempFile && fileData.content) {
-        if (fileData.content instanceof Blob) {
-          response = fileData.content;
-        } else if (typeof fileData.content === 'string' && fileData.content.startsWith('data:')) {
-          const base64Response = await fetch(fileData.content);
-          response = await base64Response.blob();
-        } else {
-          throw new Error('Не удалось скачать файл');
-        }
+  setDownloading(true);
+  try {
+    let blob: Blob;
+
+    if (isTempFile && fileData.content) {
+      // Для временных файлов из архива
+      if (fileData.content instanceof Blob) {
+        blob = fileData.content;
+      } else if (typeof fileData.content === 'string' && fileData.content.startsWith('data:')) {
+        const base64Response = await fetch(fileData.content);
+        blob = await base64Response.blob();
+      } else if (typeof fileData.content === 'string') {
+        // Если это текст - создаем Blob из текста
+        blob = new Blob([fileData.content], { type: 'text/plain' });
       } else {
-        const downloadId = typeof fileData.id === 'string' ? parseInt(fileData.id) : fileData.id;
-        response = await post(`/files/download/${downloadId}`, {});
-        
-        if (response instanceof Blob) {
-          response = response;
-        } else {
-          response = new Blob([response]);
-        }
+        throw new Error('Не удалось скачать файл');
       }
-
-      const url = window.URL.createObjectURL(response);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+    } else {
+      // Для обычных файлов - используем нативный fetch вместо post
+      const downloadId = typeof fileData.id === 'string' ? parseInt(fileData.id) : fileData.id;
+      const token = localStorage.getItem('token');
       
-      showAlert(`Файл "${fileName}" успешно скачан`);
-    } catch (error) {
-      console.error('Error downloading file:', error);
-      showAlert('Ошибка при скачивании файла', true);
-    } finally {
-      setDownloading(false);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/files/download/${downloadId}`, {
+        method: 'GET',
+        headers: { 
+          'Authorization': `Bearer ${token}` 
+        },
+      });
+
+      if (!response.ok) throw new Error('Ошибка загрузки файла');
+      
+      blob = await response.blob(); // Правильно получаем Blob
     }
-  };
+
+    // Скачивание (одинаково для обоих случаев)
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    showAlert(`Файл "${fileName}" успешно скачан`);
+  } catch (error) {
+    console.error('Error downloading file:', error);
+    showAlert('Ошибка при скачивании файла', true);
+  } finally {
+    setDownloading(false);
+  }
+};
 
   const openFileNameDialog = () => {
     setFileNameDialog({
@@ -373,9 +384,9 @@ export default function FileViewer({ fileData, onClose, onFileOpen }: FileViewer
             </div>
           ) : (
             <div className="p-8">
-              <FileInfo 
-                fileData={fileData} 
-                formatSize={formatSize} 
+              <FileInfo
+                fileData={fileData}
+                formatSize={formatSize}
                 onDownload={openFileNameDialog}
                 downloading={downloading}
               />
@@ -534,7 +545,16 @@ function FilePreview({ fileData, fileType, serveUrl, token, isTempFile, showAler
     return <ExcelViewer fileId={fileData.id} token={token} />;
   }
 
-  if (fileType === 'presentation') {
+  if (fileType === 'presentation' || fileType === 'powerpoint') {
+    // Логируем для отладки
+    console.log('PowerPoint props:', {
+      hasContent: !!fileData.content,
+      hasBlob: !!fileData.blob,
+      isTemp: isTempFile,
+      contentLength: fileData.content?.length,
+      token: token
+    });
+
     if (isTempFile && fileData.content) {
       return <PowerPointViewer content={fileData.content} isTemp={true} />;
     }
@@ -544,6 +564,9 @@ function FilePreview({ fileData, fileType, serveUrl, token, isTempFile, showAler
     if (fileData.id && !isTempFile) {
       return <PowerPointViewer fileId={fileData.id} token={token} />;
     }
+
+    // Если ничего нет - показываем ошибку
+    return <div className="text-red-500">Нет данных для отображения презентации</div>;
   }
 
   if (fileType === 'video') {

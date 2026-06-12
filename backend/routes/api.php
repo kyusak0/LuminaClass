@@ -56,6 +56,7 @@ Route::middleware('api')->group(function () {
         Route::get('/get-files', [FileController::class, 'show']);
         Route::get('/get-file/{id}', [FileController::class, 'fileInfo']);
         Route::get('/files/download/{id}', [FileController::class, 'loadFile']);
+        Route::post('/files/download/{id}', [FileController::class, 'loadFile']);
         Route::post('/files/delete/{id}', [FileController::class, 'deleteFile']);
         Route::get('/get-archive-contents/{id}', [FileController::class, 'getArchiveContents']);
 

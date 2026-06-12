@@ -9,7 +9,7 @@ import { NEXT_PUBLIC_API_URL } from "@/lib/axios.config";
 import { useAuth } from "@/context/authContext";
 import FileViewer from "@/components/files/FileViewer";
 import ArchiveViewer from "@/components/files/ArchiveViewer";
-import JSZip from 'jszip';
+import JSZip, { file } from 'jszip';
 import axios from '@/lib/axios.config';
 
 import {
@@ -242,7 +242,7 @@ export default function AnswerPage() {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
 
-        return response.data.file_id;
+        return response.data.file.id;
     };
 
     // Обновление ответа (для ученика)
@@ -272,7 +272,9 @@ export default function AnswerPage() {
                     const zipFile = new Blob([zipBlob], { type: 'application/zip' }) as File;
                     Object.defineProperty(zipFile, 'name', { value: zipFileName });
                     const fileName = prompt('Название для архива', zipFile.name) || zipFile.name;
+                    
                     fileId = await uploadFile(zipFile, fileName);
+                    
                 }
             }
 

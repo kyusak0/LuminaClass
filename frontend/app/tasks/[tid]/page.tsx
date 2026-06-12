@@ -10,7 +10,7 @@ import JSZip from 'jszip';
 import FileViewer from "@/components/files/FileViewer";
 import ArchiveViewer from "@/components/files/ArchiveViewer";
 import SearchTable, { SearchRecord } from "@/components/searchTable/SearchTable";
-import { NEXT_PUBLIC_API_URL } from "@/lib/axios.config";
+// import { process.env.NEXT_PUBLIC_API_URL } from "@/lib/axios.config";
 import axios from '@/lib/axios.config';
 
 import {
@@ -88,6 +88,12 @@ export default function TaskPage() {
   const [gradingComment, setGradingComment] = useState('');
   const [gradingMark, setGradingMark] = useState<string>('н/а');
   const [gradingSubmitting, setGradingSubmitting] = useState(false);
+  const [fileNameDialog, setFileNameDialog] = useState<{
+    show: boolean;
+    defaultName: string;
+    onConfirm: (name: string) => void;
+    files?: File[];
+  } | null>(null);
 
   // Состояния для FileViewer
   const [showFileViewer, setShowFileViewer] = useState(false);
@@ -95,18 +101,25 @@ export default function TaskPage() {
   const [showArchiveViewer, setShowArchiveViewer] = useState(false);
   const [archiveFileData, setArchiveFileData] = useState<any>(null);
 
+  const showFileNameDialog = (defaultName: string, onConfirm: (name: string) => void, files?: File[]) => {
+    setFileNameDialog({
+      show: true,
+      defaultName,
+      onConfirm,
+      files
+    });
+  };
+
   // Получение URL файла для отображения
   const getFileUrl = (path: string) => {
     if (!path) return '';
-    // Если путь уже содержит полный URL
     if (path.startsWith('http')) return path;
-    // Иначе формируем полный путь
-    return `${NEXT_PUBLIC_API_URL}/storage/${path}`;
+    return `${process.env.NEXT_PUBLIC_API_URL}/storage/${path}`;
   };
 
   // Получение URL для serve endpoint
   const getServeUrl = (fileId: number) => {
-    return `${NEXT_PUBLIC_API_URL}/api/files/serve/${fileId}`;
+    return `${process.env.NEXT_PUBLIC_API_URL}/api/files/serve/${fileId}`;
   };
 
   // Загрузка существующих файлов пользователя
@@ -162,14 +175,12 @@ export default function TaskPage() {
 
       setTask(taskData);
 
-      // Устанавливаем ответы
       if (data.answers && Array.isArray(data.answers)) {
         setAnswers(data.answers);
       } else {
         setAnswers([]);
       }
 
-      // Если ZIP архив - подготавливаем данные
       if (data.file && (data.file.original_name?.endsWith('.zip') || data.file.mime_type === 'application/zip')) {
         setArchiveFileData({
           id: data.file.id,
@@ -192,14 +203,18 @@ export default function TaskPage() {
   // Показ уведомления
   const showAlert = (title: string, message: string, type: 'success' | 'error' = 'success') => {
     const alertContent = (
-      <div>
-        <div className="flex items-center gap-2">
-          {type === 'success' ? <CheckCircle className="w-5 h-5 text-green-500" /> : <AlertCircle className="w-5 h-5 text-red-500" />}
-          <span className="font-semibold">{title}</span>
+      <div className="p-3">
+        <div className="flex items-center gap-2 font-semibold mb-2">
+          {type === 'success' ? (
+            <CheckCircle className="w-5 h-5 text-green-500" />
+          ) : (
+            <AlertCircle className="w-5 h-5 text-red-500" />
+          )}
+          <span>{title}</span>
         </div>
-        <div className="font-semibold my-1">{message}</div>
-        <div className="text-xs text-gray-500">
-          в {new Date().toLocaleTimeString()}, {new Date().toLocaleDateString()}
+        <div className="text-sm">{message}</div>
+        <div className="text-xs text-gray-500 mt-2">
+          {new Date().toLocaleString()}
         </div>
       </div>
     );
@@ -217,7 +232,32 @@ export default function TaskPage() {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
 
-    return response.data.file_id;
+    return response.data.file.id;
+  };
+
+  const handleUploadWithName = async (files: File[], customName?: string) => {
+    let fileId = null;
+
+    if (files.length === 1) {
+      const fileName = customName || files[0].name;
+      fileId = await uploadFile(files[0], fileName);
+    } else if (files.length > 1) {
+      const zip = new JSZip();
+      for (const file of files) {
+        const arrayBuffer = await file.arrayBuffer();
+        zip.file(file.name, arrayBuffer);
+      }
+
+      const zipBlob: Blob = await zip.generateAsync({ type: 'blob' });
+      const zipFileName = customName || `answer_${Date.now()}.zip`;
+      const zipFile = new Blob([zipBlob], { type: 'application/zip' }) as File;
+      Object.defineProperty(zipFile, 'name', { value: zipFileName });
+      fileId = await uploadFile(zipFile, zipFileName);
+    } else {
+      throw new Error('Не выбраны файлы для отправки');
+    }
+
+    return fileId;
   };
 
   // Отправка ответа
@@ -228,46 +268,81 @@ export default function TaskPage() {
     setSubmitting(true);
 
     try {
-      let fileId = null;
+      let fileId = 0;
 
       if (useExistingFile && selectedExistingFile) {
-        // Используем существующий файл
         fileId = selectedExistingFile.id;
-      } else if (selectedFiles.length === 1) {
-        const fileName = prompt(`Название для файла \n по умолчанию: ${selectedFiles[0].name}`) || selectedFiles[0].name;
-        fileId = await uploadFile(selectedFiles[0], fileName);
-      } else if (selectedFiles.length > 1) {
-        const zip = new JSZip();
-        for (const file of selectedFiles) {
-          const arrayBuffer = await file.arrayBuffer();
-          zip.file(file.name, arrayBuffer);
+      } else if (selectedFiles.length > 0) {
+        if (selectedFiles.length === 1) {
+          showFileNameDialog(
+            selectedFiles[0].name,
+            async (name) => {
+              try {
+                const newFileId = await uploadFile(selectedFiles[0], name);
+                await submitAnswer(newFileId);
+              } catch (error: any) {
+                showAlert('Ошибка', error.message || 'Не удалось загрузить файл', 'error');
+                setSubmitting(false);
+              }
+            },
+            selectedFiles
+          );
+          return;
+        } else if (selectedFiles.length > 1) {
+          showFileNameDialog(
+            `answer_${Date.now()}.zip`,
+            async (name) => {
+              try {
+                const zip = new JSZip();
+                for (const file of selectedFiles) {
+                  const arrayBuffer = await file.arrayBuffer();
+                  zip.file(file.name, arrayBuffer);
+                }
+                const zipBlob: Blob = await zip.generateAsync({ type: 'blob' });
+                const zipFile = new Blob([zipBlob], { type: 'application/zip' }) as File;
+                Object.defineProperty(zipFile, 'name', { value: name });
+                const newFileId = await uploadFile(zipFile, name);
+                await submitAnswer(newFileId);
+              } catch (error: any) {
+                showAlert('Ошибка', error.message || 'Не удалось создать архив', 'error');
+                setSubmitting(false);
+              }
+            },
+            selectedFiles
+          );
+          return;
         }
-
-        const zipBlob: Blob = await zip.generateAsync({ type: 'blob' });
-        const zipFileName = `answer_${Date.now()}.zip`;
-        const zipFile = new Blob([zipBlob], { type: 'application/zip' }) as File;
-        Object.defineProperty(zipFile, 'name', { value: zipFileName });
-        const fileName = prompt('Название для архива', zipFile.name) || zipFile.name;
-        fileId = await uploadFile(zipFile, fileName);
       } else {
         throw new Error('Не выбраны файлы для отправки');
       }
 
-      const form: any = event.target;
+      await submitAnswer(fileId);
+    } catch (error: any) {
+      showAlert('Ошибка', error.response?.data?.message || error.message || 'Не удалось отправить ответ', 'error');
+      setSubmitting(false);
+    }
+  };
+
+  const submitAnswer = async (fileId: number) => {
+    if (!post || !user || !task) return;
+
+    try {
+      const form: any = document.getElementById('answerForm');
       const newData = {
         task_id: task.id,
         answer_id: fileId,
         user_id: user.id,
-        students_comment: form.students_comment.value || null,
+        students_comment: form?.students_comment?.value || null,
       };
 
       await post('/create-answer', newData);
 
-      form.reset();
+      if (form) form.reset();
       setSelectedFiles([]);
       setSelectedExistingFile(null);
       setUseExistingFile(false);
       setDisabled(false);
+      setFileNameDialog(null);
 
       showAlert('Ответ успешно отправлен!', 'Ответ отправлен', 'success');
       await getTaskInfo(task.id);
@@ -295,29 +370,31 @@ export default function TaskPage() {
 
   // Скачивание файла
   const downloadFile = async (fileId: number, fileName: string) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${NEXT_PUBLIC_API_URL}/api/files/download/${fileId}`, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+    showFileNameDialog(fileName, async (customName) => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/files/download/${fileId}`, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
 
-      if (!response.ok) throw new Error('Ошибка загрузки файла');
+        if (!response.ok) throw new Error('Ошибка загрузки файла');
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = customName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
 
-      showAlert('Файл сохранен!', fileName, 'success');
-    } catch (error: any) {
-      showAlert('Ошибка', error.message, 'error');
-    }
+        showAlert('Файл сохранен!', customName, 'success');
+      } catch (error: any) {
+        showAlert('Ошибка', error.message, 'error');
+      }
+    });
   };
 
   // Открытие файла в просмотрщике
@@ -338,7 +415,6 @@ export default function TaskPage() {
       is_archive: isArchive,
     };
 
-    console.log('Opening file:', viewerData);
     setViewingFile(viewerData);
 
     if (isArchive) {
@@ -542,6 +618,53 @@ export default function TaskPage() {
 
   return (
     <MainLayout alertMess={alertMess?.content}>
+      {/* Диалог ввода имени файла */}
+      {fileNameDialog?.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <Download className="w-6 h-6 text-green-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Сохранение файла</h3>
+              </div>
+              <p className="text-gray-600 mb-4 text-sm">
+                Введите имя для сохранения файла
+              </p>
+              <input
+                type="text"
+                defaultValue={fileNameDialog.defaultName}
+                id="fileNameInput"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-main focus:border-transparent"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const input = document.getElementById('fileNameInput') as HTMLInputElement;
+                    fileNameDialog.onConfirm(input.value);
+                  }
+                }}
+              />
+              <div className="flex gap-3 justify-end mt-6">
+                <button
+                  onClick={() => setFileNameDialog(null)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium transition-colors"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={() => {
+                    const input = document.getElementById('fileNameInput') as HTMLInputElement;
+                    fileNameDialog.onConfirm(input.value);
+                  }}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                >
+                  Сохранить
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* FileViewer Modal */}
       {showFileViewer && viewingFile && (
         <div className="fixed inset-0 z-50 bg-white overflow-auto">
@@ -712,8 +835,20 @@ export default function TaskPage() {
                         />
                       ) : (
                         <div className="flex flex-col items-center">
-                          <div className="text-6xl mb-4">
-                            {task.fileName?.endsWith('.zip') ? '📦' : '📄'}
+                          <div className="mb-4">
+                            {task.fileName?.endsWith('.zip') ? (
+                              <FolderArchive className="w-20 h-20 text-yellow-500" />
+                            ) : task.fileType?.includes('pdf') ? (
+                              <File className="w-20 h-20 text-red-500" />
+                            ) : task.fileType?.includes('word') ? (
+                              <FileText className="w-20 h-20 text-blue-500" />
+                            ) : task.fileType?.includes('excel') || task.fileType?.includes('spreadsheet') ? (
+                              <FileSpreadsheet className="w-20 h-20 text-green-500" />
+                            ) : task.fileType?.includes('presentation') ? (
+                              <FileSpreadsheet className="w-20 h-20 text-orange-500" />
+                            ) : (
+                              <FileIcon className="w-20 h-20 text-gray-400" />
+                            )}
                           </div>
                           <h3 className="text-lg font-semibold mb-1">{task.fileName}</h3>
                           <p className="text-sm text-gray-500 mb-4">
@@ -769,7 +904,7 @@ export default function TaskPage() {
                     Отправить ответ
                   </h3>
 
-                  <form className="space-y-5" onSubmit={setAnswer}>
+                  <form id="answerForm" className="space-y-5" onSubmit={setAnswer}>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Комментарий</label>
                       <textarea
@@ -786,7 +921,6 @@ export default function TaskPage() {
                         Файл(ы) с ответом <span className="text-red-500">*</span>
                       </label>
 
-                      {/* Чекбокс для выбора существующего файла */}
                       {existingFiles.length > 0 && (
                         <div className="mb-3">
                           <label className="flex items-center gap-2 cursor-pointer">

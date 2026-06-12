@@ -62,7 +62,7 @@ export default function TaskPage() {
 
             // Проверяем структуру ответа
             const filesData = res.data.data || res.data;
-            
+
             (Array.isArray(filesData) ? filesData : []).forEach((item: any) => {
                 if (item.author_id == user?.id) {
                     records.push({ id: item.id, name: item.original_name });
@@ -122,7 +122,7 @@ export default function TaskPage() {
                 'Content-Type': 'multipart/form-data',
             },
         });
-        
+
         return response.data.file.id;
     };
 
@@ -237,8 +237,10 @@ export default function TaskPage() {
             const res = await get('/get-tasks');
             let tasksData = res.data.data || [];
 
+            console.log(tasksData)
+
             let filteredData: any = [];
-            
+
             if (user?.role === 'student' && user?.id) {
                 tasksData.forEach((item: any) => {
                     const studentGroupIds = item.group.students?.map((student: any) => student.student_id) || [];
@@ -246,7 +248,9 @@ export default function TaskPage() {
                         filteredData.push(item);
                     }
                 });
-            } else {
+            } else if (user?.role === 'teacher') {
+                filteredData = tasksData.filter((item:any) => item.user_id == user.id);
+            } else if (user?.role === 'admin') {
                 filteredData = tasksData;
             }
 
@@ -322,7 +326,7 @@ export default function TaskPage() {
         try {
             if (!get) return;
             const res = await get('/get-groups');
-            
+
             const groupRecords = res.data?.data?.filter((item: any) => {
                 if (user?.role === 'admin') return true;
                 if (user?.role === 'teacher') return item.teacher?.tutor_id === user.id;

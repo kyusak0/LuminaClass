@@ -156,7 +156,7 @@ interface PowerPointViewerProps {
   token?: string;
   fileBlob?: Blob;
   isTemp?: boolean;
-  content?: string;
+  content?: string; // HTML контент из архива (уже сконвертированные слайды)
 }
 
 export function PowerPointViewer({ fileId, token, fileBlob, isTemp }: any) {
@@ -171,7 +171,6 @@ export function PowerPointViewer({ fileId, token, fileBlob, isTemp }: any) {
       try {
         let arrayBuffer: ArrayBuffer;
 
-        // 1. Получаем файл как ArrayBuffer (из Blob или с сервера)
         if (isTemp && fileBlob) {
           arrayBuffer = await fileBlob.arrayBuffer();
         } else if (fileId && token) {
@@ -184,13 +183,11 @@ export function PowerPointViewer({ fileId, token, fileBlob, isTemp }: any) {
           throw new Error('Нет данных для загрузки');
         }
 
-        // 2. Конвертируем презентацию в HTML
-        //    Библиотека возвращает массив строк, где каждая строка — это HTML одного слайда
         const htmlSlides = await pptxToHtml(arrayBuffer, {
-          width: 960,        // Ширина области просмотра
-          height: 540,       // Высота области просмотра
-          scaleToFit: true,  // Масштабировать слайд под контейнер
-          letterbox: true,   // Сохранять пропорции (добавлять черные полосы при необходимости)
+          width: 960,
+          height: 540,
+          scaleToFit: false,  // ← Меняем на false! Не масштабировать, а растягивать
+          letterbox: false,   // ← Отключаем черные полосы
         });
 
         setSlidesHtml(htmlSlides);
@@ -205,23 +202,21 @@ export function PowerPointViewer({ fileId, token, fileBlob, isTemp }: any) {
     loadAndConvert();
   }, [fileId, fileBlob, isTemp, token]);
 
-
-  if (loading) return (
-    <div className="h-full w-full flex flex-col items-center justify-center">
-      <div className="text-lg text-gray-500">Загрузка данных...</div>
-      <div className="mt-4 w-16 h-16 border-4 border-main border-t-transparent rounded-full animate-spin"></div>
-    </div>
-  );
+  if (loading) return <Loader />;
   if (error) return <div className="text-red-500 text-center p-8">{error}</div>;
   if (!slidesHtml.length) return <div className="text-center p-8">В презентации нет слайдов</div>;
 
   return (
     <div className="flex flex-col items-center w-full">
-      {/* Здесь будут все слайды вашей презентации один за другим */}
       {slidesHtml.map((slide, index) => (
-        <div key={index} className="mb-8 w-full shadow-lg rounded-lg overflow-auto">
-          {/* ВАЖНО: dangerouslySetInnerHTML вставляет HTML-код слайда */}
-          <div dangerouslySetInnerHTML={{ __html: slide }} />
+        <div 
+          key={index} 
+          className="mb-8 w-full bg-white shadow-lg rounded-lg overflow-auto"  // ← overflow-auto вместо overflow-hidden
+        >
+          <div 
+            dangerouslySetInnerHTML={{ __html: slide }} 
+            style={{ height: 'auto' }}  // ← Автоматическая высота
+          />
         </div>
       ))}
       <div className="text-sm text-gray-500 mt-4">
