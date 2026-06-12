@@ -37,6 +37,7 @@ export default function MarksPage() {
     const [accessLevel, setAccessLevel] = useState(0);
     const [taskNum, setTaskNum] = useState('0');
     const [selectedGroupId, setSelectedGroupId] = useState<string>('');
+    const [selectedMark, setSelectedMark] = useState<string>(''); // Новое состояние для фильтра по оценкам
     const [sidebarItems, setSidebarItems] = useState<{
         id: number,
         el: string,
@@ -44,7 +45,8 @@ export default function MarksPage() {
     const [searchProps, setSearchProps] = useState<SearchRecord[]>([]);
     const [compactModeEnabled, setCompactModeEnabled] = useState(false);
     const [performanceData, setPerformanceData] = useState<any>(null);
-    const [teacherGroups, setTeacherGroups] = useState<any[]>([]); // Добавляем состояние для групп учителя
+    const [teacherGroups, setTeacherGroups] = useState<any[]>([]);
+    const [nullableMarks, setNullableMarks] = useState(null);
 
     // Состояния для таблицы студента
     const [studentSubjects, setStudentSubjects] = useState<string[]>([]);
@@ -504,31 +506,44 @@ export default function MarksPage() {
     }, [router]);
 
     const groupFilterOptions = useMemo(() => {
-        const options: { value: string; label: string }[] = [
-            { value: '', label: 'Все группы' }
-        ];
+    const options: { value: string; label: string }[] = [
+        { value: '', label: 'Все группы' }
+    ];
 
-        if (!teacherGroups || teacherGroups.length === 0) return options;
+    if (!teacherGroups || teacherGroups.length === 0) return options;
 
-        teacherGroups.forEach((group: any) => {
-            if (group.id && group.name) {
-                options.push({ value: group.id.toString(), label: group.name });
+    teacherGroups.forEach((group: any) => {
+        if (group.id && group.name) {
+            options.push({ value: group.id.toString(), label: group.name });
+        }
+    });
+
+    return options;
+}, [teacherGroups, accessLevel]);
+
+    // Получаем уникальные оценки из данных
+    const markFilterOptions = useMemo(() => {
+        const marks = new Set<string>();
+        marks.add(''); // Пустое значение для "Все оценки"
+
+        searchProps.forEach(record => {
+            const markColumn = record.columns.find(col => col.key === 'mark');
+            const markValue = markColumn?.data.value;
+            if (markValue && markValue !== '—' && !isNaN(Number(markValue))) {
+                marks.add(markValue.toString());
             }
         });
 
-        if (accessLevel === 3) {
-            const hasStudentsWithoutGroup = searchProps.some(record => {
-                const groupColumn = record.columns.find(col => col.key === 'group');
-                return groupColumn?.data.value === 'Без группы';
-            });
-
-            if (hasStudentsWithoutGroup) {
-                options.push({ value: 'no-group', label: '📌 Без группы' });
-            }
-        }
-
-        return options;
-    }, [teacherGroups, accessLevel, searchProps]);
+        return [
+            { value: '', label: 'Все оценки' },
+            { value: '—', label: 'Нет ответа' },
+            { value: '0', label: 'Нет оценки' },
+            { value: '2', label: '2' },
+            { value: '3', label: '3' },
+            { value: '4', label: '4' },
+            { value: '5', label: '5' },
+        ];
+    }, [searchProps]);
 
     const handleTaskChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
         setTaskNum(e.target.value);
@@ -538,9 +553,14 @@ export default function MarksPage() {
         setSelectedGroupId(e.target.value);
     }, []);
 
+    const handleMarkChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+        setSelectedMark(e.target.value);
+    }, []);
+
     const filteredSearchProps = useMemo(() => {
         let filtered = searchProps;
 
+        // Фильтр по группе
         if (selectedGroupId && accessLevel >= 2) {
             if (selectedGroupId === 'no-group') {
                 filtered = filtered.filter(record => {
@@ -558,12 +578,22 @@ export default function MarksPage() {
             }
         }
 
+        // Фильтр по заданию
         if (taskNum !== '0') {
             filtered = filtered.filter(record => record.task_id?.toString() === taskNum);
         }
 
+        // Фильтр по оценке
+        if (selectedMark !== '') {
+            filtered = filtered.filter(record => {
+                const markColumn = record.columns.find(col => col.key === 'mark');
+                const markValue = markColumn?.data.value?.toString();
+                return markValue === selectedMark;
+            });
+        }
+
         return filtered;
-    }, [searchProps, selectedGroupId, taskNum, groupFilterOptions, accessLevel]);
+    }, [searchProps, selectedGroupId, taskNum, selectedMark, groupFilterOptions, accessLevel]);
 
 
     const calculatePassRate = useCallback(() => {
@@ -867,6 +897,22 @@ export default function MarksPage() {
                                     </select>
                                 </div>
                             )}
+
+                            {/* Новый select для фильтрации по оценкам */}
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-gray-700">⭐ Оценка:</span>
+                                <select
+                                    className="px-4 py-2 border border-main rounded-lg bg-white text-main"
+                                    value={selectedMark}
+                                    onChange={handleMarkChange}
+                                >
+                                    {markFilterOptions.map((option) => (
+                                        <option key={`mark-${option.value}`} value={option.value}>
+                                            {option.label === 'Все оценки' ? option.label : `${option.label}`}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
 
                             {(user?.role == 'admin' || user?.role == 'teacher') && (
                                 <button

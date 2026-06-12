@@ -157,7 +157,6 @@ export default function FileViewer({ fileData, onClose, onFileOpen }: FileViewer
         throw new Error('Не удалось скачать файл');
       }
     } else {
-      // Для обычных файлов - используем нативный fetch вместо post
       const downloadId = typeof fileData.id === 'string' ? parseInt(fileData.id) : fileData.id;
       const token = localStorage.getItem('token');
       
