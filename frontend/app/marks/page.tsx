@@ -665,7 +665,7 @@ export default function MarksPage() {
                 const marks: number[] = [];
                 subjectMarks.forEach((value) => {
                     if (value.mark !== null && value.mark !== undefined && value.mark != 0) {
-                        marks.push(value.mark);
+                        marks.push(Number(value.mark));
                     }
                 });
                 if (marks.length > 0) {
