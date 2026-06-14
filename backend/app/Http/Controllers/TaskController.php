@@ -145,12 +145,12 @@ class TaskController extends Controller
 
     public function gradeTask(Request $request){
         $validated = $request->validate([
-            'id' => 'required|integer|exists:answers,id',
+            'answer_id' => 'required|integer|exists:answers,id',
             'teachers_comment' => 'nullable|string',
             'mark' => 'nullable|string|in:н/а,2,3,4,5',
         ]);
         
-        $answer = Answer::findOrFail($request->id);
+        $answer = Answer::findOrFail($request->answer_id);
         
         // Сохраняем старые данные для лога
         $oldData = [
@@ -186,87 +186,92 @@ class TaskController extends Controller
     }
     
     public function getPerformance() {
-        set_time_limit(300); 
+    set_time_limit(300); 
+    
+    // Загружаем все группы с учениками и учителями
+    $groups = Group::with(['students.user', 'teacher'])->get();
+    
+    // Загружаем все задания с ответами (без ограничения по количеству)
+    $tasks = Task::with(['answers' => function($query) {
+        $query->select(['id', 'user_id', 'mark', 'task_id', 'answer_id', 'created_at', 'updated_at'])
+            ->orderBy('created_at', 'desc');
+    }, 'answers.user'])->get();
+    
+    return response()->json([
+        'groups' => $groups,
+        'info' => $tasks,
+        'success' => true,
+    ]);
+}
+
+public function getPerformanceStudent($id)
+{
+    try {
+        // Находим ВСЕ группы, в которых состоит студент
+        $studentGroups = DB::table('students')
+            ->where('student_id', '=', $id)
+            ->get();
         
-        $tasksPerfomance = Task::with([
-            'answers' => function($query) {
-                $query->select(['id', 'user_id', 'mark', 'task_id', 'answer_id', 'created_at'])
-                    ->latest()
-                    ->limit(50);
-            }
-        ])->get();
-
-        $data = Task::with(['answers'])->get();
-
-        $groups = Group::with(['students.user', 'teacher'])->get(); 
+        if ($studentGroups->isEmpty()) {
+            return response()->json([
+                'data' => [],
+                'success' => true,
+                'message' => 'Студент не состоит в группах'
+            ]);
+        }
+        
+        // Получаем ID всех групп студента
+        $groupIds = $studentGroups->pluck('group_id')->toArray();
+        
+        // Получаем все задания из всех групп студента
+        $allTasks = DB::table('tasks')
+            ->join('groups', 'tasks.group_id', '=', 'groups.id')
+            ->whereIn('tasks.group_id', $groupIds)
+            ->select([
+                'tasks.id as task_id',
+                'tasks.title as task_title',
+                'tasks.group_id',
+                'groups.subject as subject',
+                'tasks.user_id as task_creator_id',
+                'tasks.created_at as task_created_at',
+            ])
+            ->orderBy('tasks.created_at', 'asc')
+            ->get();
+        
+        // Получаем ответы студента
+        $studentAnswers = DB::table('answers')
+            ->where('user_id', '=', $id)
+            ->get()
+            ->keyBy('task_id');
+        
+            $data = $allTasks->map(function($task) use ($studentAnswers, $id) {
+            $answer = $studentAnswers->get($task->task_id);
+            
+            return [
+                'group_id' => $task->group_id,
+                'task_creator_id' => $task->task_creator_id,
+                'student_id' => (int)$id,
+                'task_id' => $task->task_id,
+                'task_title' => $task->task_title,
+                'task_created_at' => $task->task_created_at,
+                'answer_id' => $answer ? $answer->id : null,
+                'mark' => $answer ? $answer->mark : null,
+                'subject' => $task->subject,
+            ];
+        });
         
         return response()->json([
-            'groups' => $groups,
-            'info' => $data,
+            'data' => $data,
             'success' => true,
         ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage(),
+        ], 500);
     }
-
-    public function getPerformanceStudent($id)
-    {
-        try {
-            $studentGroup = DB::table('students')
-                ->where('student_id', '=', $id)
-                ->first();
-            
-            if (!$studentGroup) {
-                return response()->json([
-                    'data' => [],
-                    'success' => true,
-                    'message' => 'Студент не состоит в группе'
-                ]);
-            }
-            
-            $allTasks = DB::table('tasks')
-                ->join('groups', 'tasks.group_id', '=', 'groups.id')
-                ->where('tasks.group_id', '=', $studentGroup->group_id)
-                ->select([
-                    'tasks.id as task_id',
-                    'tasks.title as task_title',
-                    'tasks.group_id',
-                    'groups.subject as subject',
-                    'tasks.user_id as task_creator_id',
-                ])
-                ->get();
-            
-            $studentAnswers = DB::table('answers')
-                ->where('user_id', '=', $id)
-                ->get()
-                ->keyBy('task_id');
-            
-            $data = $allTasks->map(function($task) use ($studentAnswers, $id) {
-                $answer = $studentAnswers->get($task->task_id);
-                
-                return [
-                    'group_id' => $task->group_id,
-                    'task_creator_id' => $task->task_creator_id,
-                    'student_id' => (int)$id,
-                    'task_id' => $task->task_id,
-                    'task_title' => $task->task_title,
-                    'answer_id' => $answer ? $answer->id : null,
-                    'mark' => $answer ? $answer->mark : null,
-                    'subject' => $task->subject,
-                ];
-            });
-            
-            return response()->json([
-                'data' => $data,
-                'success' => true,
-            ]);
-            
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
-        }
-    }
-    
+}  
     /**
      * Обновление задания
      */

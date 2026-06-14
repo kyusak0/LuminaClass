@@ -53,12 +53,10 @@ interface SearchTableProps {
     onFilterChange?: (value: string) => void;
     disableInternalFilter?: boolean;
     onRowClick?: (record: SearchRecord) => void;
-    // Компактный режим
     compactView?: boolean;
     studentNameField?: string;
     taskIdField?: string;
     gradeField?: string;
-    // Дополнительные пропсы
     customRenderers?: {
         [key: string]: (value: any, record: SearchRecord) => React.ReactNode;
     };
@@ -70,8 +68,9 @@ interface SearchTableProps {
 interface CompactRecord {
     studentId: string | number;
     studentName: string;
-    grades: Map<string, { value: string | null; originalRecord: SearchRecord }>;
-    taskIds: string[];
+    grades: Map<number | string, { value: string | null; originalRecord: SearchRecord; taskTitle: string; taskId: number }>;
+    taskIds: (number | string)[];
+    taskTitles: Map<number | string, string>;
     originalRecords: SearchRecord[];
 }
 
@@ -86,7 +85,7 @@ export default function SearchTable({
     disableInternalFilter = false,
     onRowClick,
     compactView = false,
-    studentNameField = 'Пользователь',
+    studentNameField = 'Ученик',
     taskIdField = 'Задание',
     gradeField = 'Оценка',
     customRenderers = {},
@@ -100,7 +99,6 @@ export default function SearchTable({
     const [currentPage, setCurrentPage] = useState(1);
     const [perPage, setPerPage] = useState(10);
     const [data, setData] = useState<SearchRecord[]>(searchProps);
-    const [dataKey, setDataKey] = useState(0);
 
     // Автоматическое определение поля для фильтрации
     const autoFilterField = useMemo(() => {
@@ -178,7 +176,6 @@ export default function SearchTable({
     // Обновление данных при изменении пропсов
     useEffect(() => {
         setData(searchProps);
-        setDataKey(prev => prev + 1);
     }, [searchProps]);
 
     // Фильтрация по заданию
@@ -188,7 +185,7 @@ export default function SearchTable({
         }
         const taskId = parseInt(taskNum);
         return data.filter(record => record.task_id === taskId);
-    }, [taskNum, data, dataKey]);
+    }, [taskNum, data]);
 
     // Фильтрация по выпадающему списку
     const filteredBySelect = useMemo(() => {
@@ -259,11 +256,14 @@ export default function SearchTable({
             );
             const studentName = studentNameColumn?.data.value?.toString() || 'Неизвестный ученик';
 
-            // Находим ID задания
-            const taskIdColumn = record.columns.find(col =>
+            // Находим задание
+            const taskColumn = record.columns.find(col =>
                 col.title === taskIdField || col.key === taskIdField
             );
-            const taskId = taskIdColumn?.data.value?.toString() || '';
+            const taskTitle = taskColumn?.data.value?.toString() || 'Без названия';
+            
+            // Используем task_id как идентификатор задания
+            const taskId = record.task_id || taskTitle;
 
             // Находим оценку
             const gradeColumn = record.columns.find(col =>
@@ -271,7 +271,8 @@ export default function SearchTable({
             );
             const grade = gradeColumn?.data.value?.toString() || null;
 
-            const studentId = record.id || studentName;
+            // Используем имя ученика как идентификатор
+            const studentId = studentName;
 
             if (!studentsMap.has(studentId)) {
                 studentsMap.set(studentId, {
@@ -279,25 +280,35 @@ export default function SearchTable({
                     studentName,
                     grades: new Map(),
                     taskIds: [],
+                    taskTitles: new Map(),
                     originalRecords: []
                 });
             }
 
             const studentData = studentsMap.get(studentId)!;
-            studentData.grades.set(taskId, { value: grade, originalRecord: record });
-            if (!studentData.taskIds.includes(taskId)) {
+            
+            // Сохраняем оценку
+            if (!studentData.grades.has(taskId)) {
+                studentData.grades.set(taskId, { 
+                    value: grade, 
+                    originalRecord: record,
+                    taskTitle: taskTitle,
+                    taskId: record.task_id || 0
+                });
                 studentData.taskIds.push(taskId);
+                studentData.taskTitles.set(taskId, taskTitle);
             }
+            
             studentData.originalRecords.push(record);
         });
 
+        // Сортируем задания по task_id
         const result = Array.from(studentsMap.values());
         result.forEach(student => {
             student.taskIds.sort((a, b) => {
-                const numA = parseInt(a);
-                const numB = parseInt(b);
-                if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-                return a.localeCompare(b);
+                const taskA = student.grades.get(a)?.taskId || 0;
+                const taskB = student.grades.get(b)?.taskId || 0;
+                return taskA - taskB;
             });
         });
 
@@ -344,72 +355,6 @@ export default function SearchTable({
                 )
             });
         }
-    };
-
-    // Обработчик изменения оценки
-    const marksChange = async (e: ChangeEvent<HTMLSelectElement>, record: SearchRecord, column: Column) => {
-        e.preventDefault();
-        const newValue = e.target.value;
-
-        updateColumnValue(record.id, column.key || column.title, newValue);
-
-        try {
-            const markData = {
-                id: record.id,
-                mark: newValue,
-            };
-            const res = await api.gradeTask(markData);
-            const alertContent = (
-                <div>
-                    <div>Сообщение:</div>
-                    <div className="font-semibold my-1">{res.message}</div>
-                    <div className="text-xs text-gray-500">
-                        в {new Date().toLocaleTimeString()}, {new Date().toLocaleDateString()}
-                    </div>
-                </div>
-            );
-            setAlertMess({ content: alertContent });
-        } catch (error: any) {
-            const alertContent = (
-                <div>
-                    <div>Ошибка:</div>
-                    <div className="font-semibold my-1">{error.message}</div>
-                    <div className="text-xs text-gray-500">
-                        в {new Date().toLocaleTimeString()}, {new Date().toLocaleDateString()}
-                    </div>
-                </div>
-            );
-            setAlertMess({ content: alertContent });
-
-            updateColumnValue(record.id, column.key || column.title, column.data.value);
-        }
-    };
-
-    // Обновление значения в колонке
-    const updateColumnValue = (rowId: string | number | undefined, columnKey: string, newValue: string | null) => {
-        if (!rowId) return;
-
-        setData(prevData => prevData.map(row => {
-            if (row.id === rowId) {
-                return {
-                    ...row,
-                    columns: row.columns.map((col: Column) => {
-                        const colKey = col.key || col.title;
-                        if (colKey === columnKey) {
-                            return {
-                                ...col,
-                                data: {
-                                    ...col.data,
-                                    value: newValue
-                                }
-                            };
-                        }
-                        return col;
-                    })
-                };
-            }
-            return row;
-        }));
     };
 
     // Копирование текста
@@ -503,68 +448,97 @@ export default function SearchTable({
         const compactRecords = paginatedData as CompactRecord[];
         if (!compactRecords.length) return null;
 
-        const allTaskIds = new Set<string>();
+        // Собираем все уникальные задания из всех записей
+        const allTaskIds = new Set<number | string>();
+        
         compactRecords.forEach(record => {
-            record.taskIds.forEach(taskId => allTaskIds.add(taskId));
+            record.taskIds.forEach(taskId => {
+                allTaskIds.add(taskId);
+            });
         });
+        
+        // Сортируем задания по ID
         const sortedTaskIds = Array.from(allTaskIds).sort((a, b) => {
-            const numA = parseInt(a);
-            const numB = parseInt(b);
+            const numA = typeof a === 'string' ? parseInt(a) : a;
+            const numB = typeof b === 'string' ? parseInt(b) : b;
             if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-            return a.localeCompare(b);
+            return String(a).localeCompare(String(b));
         });
 
         return (
-            <div className="overflow-x-auto rounded-lg overflow-hidden border-collapse border border-main">
-                <table className="min-w-full">
-                    <thead>
+            <div className="overflow-x-auto rounded-lg overflow-hidden border border-main">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
                         <tr>
-                            <th className="border-main border px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase bg-white sticky left-0 bg-white z-10">
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10 min-w-[150px]">
                                 Ученик
                             </th>
-                            {sortedTaskIds.map(taskId => (
-                                <th
-                                    key={taskId}
-                                    className="border-main border px-3 py-2 text-center text-xs font-semibold text-gray-700 uppercase bg-white min-w-[80px]"
-                                >
-                                    {taskId}
-                                </th>
-                            ))}
+                            {sortedTaskIds.map(taskId => {
+                                const taskTitle = compactRecords[0]?.taskTitles.get(taskId) || String(taskId);
+                                return (
+                                    <th
+                                        key={taskId}
+                                        className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]"
+                                        title={taskTitle}
+                                    >
+                                        {taskTitle.length > 20 ? taskTitle.substring(0, 20) + '...' : taskTitle}
+                                    </th>
+                                );
+                            })}
                             {actions.length > 0 && (
-                                <th className="border-main border px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase bg-white sticky right-0 bg-white z-10">
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-10 min-w-[100px]">
                                     Действие
                                 </th>
                             )}
                         </tr>
                     </thead>
-                    <tbody className="bg-white">
+                    <tbody className="bg-white divide-y divide-gray-200">
                         {compactRecords.map((record) => (
                             <tr key={record.studentId} className="hover:bg-gray-50">
-                                <td className="border-main border px-3 py-2 text-sm sticky left-0 bg-white">
+                                <td className="px-4 py-3 text-sm font-medium text-gray-900 sticky left-0 bg-white z-10">
                                     {record.studentName}
                                 </td>
                                 {sortedTaskIds.map(taskId => {
                                     const grade = record.grades.get(taskId);
+                                    const gradeValue = grade?.value;
+                                    const hasGrade = gradeValue && gradeValue !== 'null' && gradeValue !== '—' && gradeValue !== '';
+                                    
+                                    let gradeClass = 'text-gray-400';
+                                    let bgClass = '';
+                                    
+                                    if (hasGrade) {
+                                        const numGrade = Number(gradeValue);
+                                        if (numGrade >= 4) {
+                                            gradeClass = 'text-green-600 font-bold';
+                                            bgClass = 'bg-green-50';
+                                        } else if (numGrade >= 3) {
+                                            gradeClass = 'text-blue-600';
+                                            bgClass = 'bg-blue-50';
+                                        } else if (numGrade >= 2) {
+                                            gradeClass = 'text-red-600';
+                                            bgClass = 'bg-red-50';
+                                        }
+                                    }
+                                    
                                     return (
                                         <td
                                             key={`${record.studentId}-${taskId}`}
-                                            className="border-main border px-3 py-2 text-center text-sm"
+                                            className={`px-4 py-3 text-center text-sm cursor-pointer transition-colors ${bgClass} hover:opacity-75`}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (grade?.originalRecord && onRowClick) {
+                                                    onRowClick(grade.originalRecord);
+                                                }
+                                            }}
                                         >
-                                            {grade?.value && grade.value !== 'null' && grade.value !== '—' ? (
-                                                <span className={`font-medium ${grade.value === '5' ? 'text-green-600' :
-                                                    grade.value === '2' ? 'text-red-600' :
-                                                        'text-gray-700'
-                                                    }`}>
-                                                    {grade.value}
-                                                </span>
-                                            ) : (
-                                                <span className="text-gray-400">—</span>
-                                            )}
+                                            <span className={gradeClass}>
+                                                {hasGrade ? gradeValue : '—'}
+                                            </span>
                                         </td>
                                     );
                                 })}
                                 {actions.length > 0 && (
-                                    <td className="border-main border px-3 py-2 sticky right-0 bg-white">
+                                    <td className="px-4 py-3 sticky right-0 bg-white">
                                         <div className="flex gap-1 flex-wrap" onClick={(e) => e.stopPropagation()}>
                                             {actions.map((action, idx) => {
                                                 const originalRecord = record.originalRecords[0];
@@ -587,67 +561,33 @@ export default function SearchTable({
         );
     };
 
-    // Рендер ячейки с кастомным рендерером
-    const renderCell = (column: Column, record: SearchRecord, columnIndex: number, recordIndex: number) => {
-        const columnKey = column.key || column.title;
-
-        if (customRenderers[columnKey]) {
-            return customRenderers[columnKey](column.data.value, record);
-        }
-
-        if (column.data.tag === 'a') {
-            return (
-                <a
-                    title={column.data.value?.toString()}
-                    href={column.data.isLink}
-                    target={column.data.isNewPage ? "_blank" : '_self'}
-                    className="hover:text-main px-3 py-2 w-full inline-block"
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    {column.data.value}
-                </a>
-            );
-        }
-
-
-        return (
-            <div
-                title={column.data.value?.toString()}
-                className="text-left px-3 py-2 w-full"
-                onDoubleClick={copyText as any}
-            >
-                {column.data.value}
-            </div>
-        );
-    };
-
     // Рендер обычной таблицы
     const renderNormalTable = () => {
         const normalData = paginatedData as SearchRecord[];
         if (!normalData.length) return null;
 
         return (
-            <div className="overflow-x-auto rounded-lg overflow-hidden border-collapse border border-main">
-                <table className="min-w-full">
-                    <thead>
+            <div className="overflow-x-auto rounded-lg overflow-hidden border border-main">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
                         <tr>
                             {data[0]?.columns?.map((column: Column, index: number) => (
                                 <th
                                     key={`header-${index}`}
-                                    className="border-main border px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase bg-white"
+                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                                     style={{ width: getColumnWidth(column.data.size) }}
                                 >
                                     {column.title}
                                 </th>
                             ))}
                             {actions.length > 0 && (
-                                <th className="border-main border px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase bg-white">
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Действие
                                 </th>
                             )}
                         </tr>
                     </thead>
-                    <tbody className="bg-white">
+                    <tbody className="bg-white divide-y divide-gray-200">
                         {normalData.map((record: SearchRecord & { _uniqueKey?: string }, recordIndex: number) => (
                             <tr
                                 key={record._uniqueKey || `${record.task_id}_${record.id}_${recordIndex}`}
@@ -661,13 +601,14 @@ export default function SearchTable({
                                 {record.columns.map((column: Column, columnIndex: number) => (
                                     <td
                                         key={`${recordIndex}-${columnIndex}`}
-                                        className={`text-sm border-main border h-10 max-w-[300px] pr-5 truncate ${column.data.add || ''}`}
+                                        className={`px-4 py-3 text-sm ${column.data.add || ''}`}
+                                        onDoubleClick={copyText as any}
                                     >
-                                        {renderCell(column, record, columnIndex, recordIndex)}
+                                        {column.data.value || '—'}
                                     </td>
                                 ))}
                                 {actions.length > 0 && (
-                                    <td className="text-sm border-main border px-3 py-2">
+                                    <td className="px-4 py-3 text-sm">
                                         <div className="flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                                             {actions.map((action, index) => (
                                                 <ActionButton
@@ -735,7 +676,7 @@ export default function SearchTable({
                             key={pageNum}
                             onClick={() => paginate(pageNum)}
                             className={`px-3 py-2 border rounded-lg ${currentPage === pageNum
-                                ? 'bg-main text-white border-main'
+                                ? 'bg-green-600 text-white border-green-600'
                                 : 'hover:bg-gray-50'
                                 }`}
                         >

@@ -156,7 +156,7 @@ export default function AnswerPage() {
             const answerData = response.data.data || response.data;
 
             const taskData = {
-                id: answerData.id,
+                id: answerData.task_id,
                 student: answerData.user?.name || answerData.student_name || 'Неизвестно',
                 studentId: answerData.user?.id || answerData.student_id,
                 mark: answerData.mark || 'н/а',
@@ -188,7 +188,7 @@ export default function AnswerPage() {
                     mime_type: getCorrectMimeType(answerData.file.mime_type, answerData.file.original_name),
                     size: answerData.file.size || 0,
                     url: `${NEXT_PUBLIC_API_URL}/storage/${answerData.file.path}`,
-                    serve_url: `${NEXT_PUBLIC_API_URL}/api/files/${answerData.file.id}/serve`,
+                    serve_url: `${NEXT_PUBLIC_API_URL}/api/files/serve/${answerData.file.id}`,
                     file_type: getFileTypeByExtension(answerData.file.original_name, answerData.file.mime_type),
                     is_archive: isArchive,
                 };
@@ -305,6 +305,7 @@ export default function AnswerPage() {
         const form: any = event.target;
         const newData = {
             id: task?.id,
+            answer_id: params?.aid,
             mark: form.mark.value === 'н/а' ? null : form.mark.value,
             teachers_comment: form.teachers_comment.value
         };
@@ -359,7 +360,7 @@ export default function AnswerPage() {
                 mime_type: getCorrectMimeType(task.task_file.mime_type, task.task_file.original_name),
                 size: task.task_file.size || 0,
                 url: `${NEXT_PUBLIC_API_URL}/storage/${task.task_file.path}`,
-                serve_url: `${NEXT_PUBLIC_API_URL}/api/files/${task.task_file.id}/serve`,
+                serve_url: `${NEXT_PUBLIC_API_URL}/api/files/serve/${task.task_file.id}`,
                 file_type: getFileTypeByExtension(task.task_file.original_name, task.task_file.mime_type),
                 is_archive: isArchive,
             };
