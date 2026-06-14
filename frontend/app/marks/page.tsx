@@ -50,7 +50,7 @@ export default function MarksPage() {
 
     // Состояния для таблицы студента
     const [studentSubjects, setStudentSubjects] = useState<string[]>([]);
-    const [studentTasks, setStudentTasks] = useState<{ id: number; title: string; subject: string, task_created_at:string }[]>([]);
+    const [studentTasks, setStudentTasks] = useState<{ id: number; title: string; subject: string, task_created_at: string }[]>([]);
     const [studentMarksMatrix, setStudentMarksMatrix] = useState<Map<string, Map<number, TaskData>>>(new Map());
     const [averageScores, setAverageScores] = useState<Map<string, number>>(new Map());
     const [selectedStudentSubject, setSelectedStudentSubject] = useState<string>('');
@@ -207,7 +207,7 @@ export default function MarksPage() {
         setStudentSubjects(subjects);
 
         // Собираем уникальные задания с их названиями и предметами
-        const tasksMap = new Map<number, { title: string; subject: string, task_created_at:string }>();
+        const tasksMap = new Map<number, { title: string; subject: string, task_created_at: string }>();
         data.forEach(item => {
             if (!tasksMap.has(item.task_id)) {
                 tasksMap.set(item.task_id, {
@@ -757,7 +757,7 @@ export default function MarksPage() {
                     <span>Уровень доступа —</span>
                     {accessLevel === 3 && <span className="text-green-600 font-semibold">Администратор</span>}
                     {accessLevel === 2 && <span className="text-blue-600 font-semibold">Учитель</span>}
-                    {accessLevel === 1 && <span className="text-purple-600 font-semibold">Ученик</span>}
+                    {accessLevel === 1 && <span className="text-green-600 font-semibold">Ученик</span>}
                 </div>
                 {user?.role === 'teacher' && teacherGroups.length > 0 && (
                     <div className="mt-2 text-sm text-gray-500">
@@ -774,7 +774,7 @@ export default function MarksPage() {
                         <div className="flex items-center gap-2">
                             <span className="text-sm font-medium text-gray-700">📚 Предмет:</span>
                             <select
-                                className="px-4 py-2 border border-purple-600 rounded-lg bg-white text-purple-600"
+                                className="px-4 py-2 border border-green-600 rounded-lg bg-white text-green-600"
                                 value={selectedStudentSubject}
                                 onChange={(e) => {
                                     setSelectedStudentSubject(e.target.value);
@@ -792,7 +792,7 @@ export default function MarksPage() {
                         <div className="flex items-center gap-2">
                             <span className="text-sm font-medium text-gray-700">📋 Задание:</span>
                             <select
-                                className="px-4 py-2 border border-purple-600 rounded-lg bg-white text-purple-600"
+                                className="px-4 py-2 border border-green-600 rounded-lg bg-white text-green-600"
                                 value={selectedStudentTask}
                                 onChange={(e) => setSelectedStudentTask(e.target.value)}
                                 disabled={!selectedStudentSubject && filteredStudentTasks.length === 0}
@@ -886,7 +886,6 @@ export default function MarksPage() {
                                         {filteredStudentTasks.map(task => (
                                             <th key={`task-${task.id}`} className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
                                                 <div className="flex flex-col items-center gap-1">
-                                                    <span>{new Date(task.task_created_at).toLocaleDateString('RU-ru')}</span>
                                                 </div>
                                             </th>
                                         ))}
@@ -900,16 +899,20 @@ export default function MarksPage() {
                                         const marksByTask = filteredStudentMarksMatrix.get(subject) || new Map();
                                         const averageScore = filteredAverageScores.get(subject) || 0;
                                         return (
-                                            <tr key={`subject-${subject}-${index}`} className="hover:bg-gray-50">
+                                            <tr key={`subject-${subject}-${index}`} className="hover:bg-gray-50 relative">
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white z-10">
                                                     {subject}
                                                 </td>
                                                 {filteredStudentTasks.map(task => {
                                                     const taskData = marksByTask.get(task.id);
                                                     const mark = taskData?.mark;
+
+                                                    if (mark === null || mark === undefined || mark == 0) {
+                                                        return null;
+                                                    }
                                                     let markClass = 'text-gray-400';
                                                     let markBgClass = '';
-                                                    if (mark !== null && mark !== undefined && !isNaN(mark) && mark !== 0) {
+                                                    if (mark !== null && mark !== undefined && !isNaN(mark) && mark != 0) {
                                                         if (mark >= 4) {
                                                             markClass = 'text-green-600 font-bold';
                                                             markBgClass = 'bg-green-50';
@@ -927,13 +930,13 @@ export default function MarksPage() {
                                                             className={`px-6 py-4 whitespace-nowrap text-sm text-center cursor-pointer transition-all ${markBgClass} hover:opacity-75`}
                                                             onClick={() => handleMarkClick(task.id, taskData?.answer_id, mark)}
                                                         >
-                                                            <span className={markClass}>
+                                                            <span className={`${markClass}`}>
                                                                 {mark !== null && mark !== undefined && !isNaN(mark) && mark !== 0 ? mark : '—'}
                                                             </span>
                                                         </td>
                                                     );
                                                 })}
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-bold sticky right-0 bg-white z-10">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-bold right-16 bg-white z-10 absolute">
                                                     <span className={
                                                         averageScore >= 4 ? 'text-green-600' :
                                                             averageScore >= 3 ? 'text-blue-600' :
@@ -991,21 +994,23 @@ export default function MarksPage() {
                         <div className="w-full bg-gray-200 rounded-full h-3">
                             <div
                                 className="bg-green-600 h-3 rounded-full transition-all duration-300"
-                                style={{ width: `${Math.min((() => {
-                                    if (!filteredSearchProps || filteredSearchProps.length === 0) return 0;
-                                    let totalMarks = 0;
-                                    let goodMarks = 0;
-                                    filteredSearchProps.forEach((record: SearchRecord) => {
-                                        const markColumn = record.columns.find(col => col.key === 'mark');
-                                        const mark = markColumn?.data.value;
-                                        if (mark && mark !== '' && !isNaN(Number(mark))) {
-                                            totalMarks++;
-                                            if (Number(mark) >= 4) goodMarks++;
-                                        }
-                                    });
-                                    if (totalMarks === 0) return 0;
-                                    return (goodMarks / totalMarks) * 100;
-                                })(), 100)}%` }}
+                                style={{
+                                    width: `${Math.min((() => {
+                                        if (!filteredSearchProps || filteredSearchProps.length === 0) return 0;
+                                        let totalMarks = 0;
+                                        let goodMarks = 0;
+                                        filteredSearchProps.forEach((record: SearchRecord) => {
+                                            const markColumn = record.columns.find(col => col.key === 'mark');
+                                            const mark = markColumn?.data.value;
+                                            if (mark && mark !== '' && !isNaN(Number(mark))) {
+                                                totalMarks++;
+                                                if (Number(mark) >= 4) goodMarks++;
+                                            }
+                                        });
+                                        if (totalMarks === 0) return 0;
+                                        return (goodMarks / totalMarks) * 100;
+                                    })(), 100)}%`
+                                }}
                             />
                         </div>
                     </div>
