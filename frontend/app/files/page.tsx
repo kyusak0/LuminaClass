@@ -66,7 +66,7 @@ export default function FilesCatalog() {
             </div>
         );
         setAlertMess({ content: alertContent });
-        
+
         setTimeout(() => {
             setAlertMess(null);
         }, 5000);
@@ -161,22 +161,22 @@ export default function FilesCatalog() {
                     'Content-Type': 'multipart/form-data',
                 },
             });
-            
+
             showAlert(response.data.message || 'Файл успешно загружен');
             await getFiles();
             setSelectedFile(null);
             setDisabled(true);
-            
+
             const fileInput = document.getElementById('file-input') as HTMLInputElement;
             if (fileInput) fileInput.value = '';
-            
+
         } catch (error: any) {
             console.error('Ошибка загрузки файла:', error);
-            
+
             if (error.response) {
-                const errorMessage = error.response.data?.message || 
-                                   error.response.data?.errors?.file?.[0] || 
-                                   'Ошибка при загрузке файла';
+                const errorMessage = error.response.data?.message ||
+                    error.response.data?.errors?.file?.[0] ||
+                    'Ошибка при загрузке файла';
                 showAlert(errorMessage, true);
             } else if (error.request) {
                 showAlert('Сервер не отвечает. Проверьте подключение.', true);
@@ -190,7 +190,7 @@ export default function FilesCatalog() {
 
     const getFileIcon = (mimeType: string, size: 'small' | 'large' = 'small') => {
         const iconClass = size === 'large' ? 'w-12 h-12' : 'w-4 h-4 inline mr-1';
-        
+
         if (mimeType.includes('pdf')) return <FileText className={`${iconClass} text-red-500`} />;
         if (mimeType.includes('image')) return <FileImage className={`${iconClass} text-purple-500`} />;
         if (mimeType.includes('word') || mimeType.includes('document')) return <FileText className={`${iconClass} text-blue-500`} />;
@@ -219,6 +219,8 @@ export default function FilesCatalog() {
         if (mimeType.includes('word')) return 'Документ Word';
         if (mimeType.includes('excel')) return 'Таблица Excel';
         if (mimeType.includes('text')) return 'Текст';
+        if (mimeType.includes('presentation')) return 'Презентация';
+        if (mimeType.includes('zip')) return 'Архив';
         return 'Неопр.';
     };
 
@@ -273,15 +275,6 @@ export default function FilesCatalog() {
                 key: 'size',
                 data: {
                     value: formatFileSize(file.size),
-                    size: 2,
-                    isFilter: false
-                }
-            },
-            {
-                title: 'Автор',
-                key: 'author',
-                data: {
-                    value: `ID: ${file.author_id}`,
                     size: 2,
                     isFilter: false
                 }
@@ -396,13 +389,13 @@ export default function FilesCatalog() {
                                     if (e.target.files && e.target.files[0]) {
                                         const file = e.target.files[0];
                                         const maxSize = 10 * 1024 * 1024;
-                                        
+
                                         if (file.size > maxSize) {
                                             showAlert('Файл слишком большой. Максимальный размер: 10MB', true);
                                             e.target.value = '';
                                             return;
                                         }
-                                        
+
                                         setSelectedFile(file);
                                         setDisabled(false);
                                     }
