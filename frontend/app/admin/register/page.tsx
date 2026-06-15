@@ -181,8 +181,7 @@ export default function BookingsPage() {
     }, [bookings]);
 
     const filterOptions = [
-        { value: '', label: 'Все заявки' },
-        { value: 'forgot-password', label: 'Забыли пароль' },
+        { value: 'refresh', label: 'Забыли пароль' },
         { value: 'register', label: 'Регистрация' },
     ];
 

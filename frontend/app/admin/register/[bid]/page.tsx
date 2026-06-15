@@ -347,13 +347,7 @@ export default function BookingPage() {
   );
 
   return (
-    <AdminLayout>
-      {alertMess?.content && (
-        <div className="fixed top-4 right-4 z-50 max-w-sm animate-in slide-in-from-top-2">
-          {alertMess.content}
-        </div>
-      )}
-
+    <AdminLayout alertMess={alertMess?.content}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Левая колонка - Информация о заявке */}
