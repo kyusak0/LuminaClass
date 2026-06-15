@@ -331,7 +331,7 @@ export default function BookingPage() {
         let message
         if (booking?.status != 'canceled' && booking?.status != 'done') {
             const dataToSend = { id: booking?.id, status: 'canceled' };
-            const editRes = await post('/bookings/edit', dataToSend);
+            const editRes = await post(`/bookings/${params.bid}/edit`, dataToSend);
             message = editRes.message
             await getBookingInfo((params?.bid)?.toString() || '');
         } else {
